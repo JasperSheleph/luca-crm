@@ -17,9 +17,9 @@ export default function Sidebar({ items, user }: { items: NavItem[]; user: AppUs
       <div className="px-4 py-5">
         <Link href="/">
           <Image
-            src="/luca-logo.png" alt="LUCA Elevators"
+            src="/luca-logo-white.png" alt="LUCA Elevators"
             width={200} height={52} priority
-            className="h-auto w-[150px] brightness-0 invert"
+            className="h-auto w-[150px]"
           />
         </Link>
       </div>
