@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* ============================================================
+   LUCA design system — the ONLY place raw colour values live.
+   Sampled from the logo: the wordmark navy is exactly #061A4C.
+   Changing a brand colour means editing this block and nothing else.
+   lib/config/design-tokens.ts maps meaning (stages, states) onto these.
+   ============================================================ */
+:root {
+  --navy-900: #061A4C;  /* sidebar, primary buttons, headers */
+  --navy-800: #0C2A6B;  /* hover */
+  --navy-700: #1B3F8F;  /* links, focus rings */
+  --navy-100: #E4E9F4;  /* selected rows, tinted panels */
+  --navy-50:  #F5F7FC;  /* app background */
+  --paper:    #FFFFFF;
+  --ink:      #0F1729;
+  --ink-muted:#5A6580;
+  --border:   #DCE2EE;
+  --gold:     #C08A2E;  /* Won state and wordmark only */
+  --success:  #12734A;
+  --warning:  #B45309;
+  --danger:   #B42318;
+  --parked:   #64748B;
+}
+
+@theme inline {
+  --color-navy-900: var(--navy-900);
+  --color-navy-800: var(--navy-800);
+  --color-navy-700: var(--navy-700);
+  --color-navy-100: var(--navy-100);
+  --color-navy-50:  var(--navy-50);
+  --color-paper:    var(--paper);
+  --color-ink:      var(--ink);
+  --color-ink-muted:var(--ink-muted);
+  --color-border:   var(--border);
+  --color-gold:     var(--gold);
+  --color-success:  var(--success);
+  --color-warning:  var(--warning);
+  --color-danger:   var(--danger);
+  --color-parked:   var(--parked);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* A working tool, not a marketing site: tight rows, compact controls,
+   minimal decoration. No dark mode — this is used in offices and in the
+   field on bright screens, and a second palette is a second thing to
+   maintain for a team with no technical staff. */
+body {
+  background: var(--navy-50);
+  color: var(--ink);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every amount, date and count column aligns on the digit. */
+.tabular, table td, table th {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--navy-700);
+  outline-offset: 2px;
+}

@@ -1,0 +1,16 @@
+# Supabase CLI config.
+#
+# This project does NOT use the local Docker stack — migrations are applied
+# straight to the hosted project with `npm run db:push`. The CLI only needs to
+# know which project it is talking to; everything else is configured in the
+# Supabase dashboard.
+#
+# The generated default was ~350 lines of commented examples for a local stack
+# we do not run. One of them, a SendGrid `pass = "env(...)"` sample, trips
+# secret scanners. Keeping this file minimal avoids both problems.
+
+project_id = "Luca"
+
+[db]
+# Must match the hosted project's Postgres major version.
+major_version = 17
