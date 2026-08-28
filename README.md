@@ -32,20 +32,54 @@ Supabase → Project Settings → API Keys. **Never commit it**; `.gitignore` co
 | `npm run db:push` | Apply migrations to Supabase |
 | `npm run users:seed` | Create the initial user accounts |
 
-## First-time database setup
+## Database
 
-Migrations live in `supabase/migrations/` and run in filename order. Applying
-them needs the **database password** (Supabase → Project Settings → Database),
-which is a different thing from the API keys in `.env.local`.
+Migrations live in `supabase/migrations/` and run in filename order.
 
 ```bash
-npx supabase link --project-ref lsmkjudvlnrcdkisoekj
-npm run db:push
-npm run users:seed
+npm run db:status   # what is applied
+npm run db:push     # apply anything new
+npm run users:seed  # create the mock accounts
 ```
 
-`link` prompts for the password once and caches it in `supabase/.temp/`, which is
-gitignored. After that, `npm run db:push` applies any new migration on its own.
+Both scripts read `SUPABASE_DB_URL` from `.env.local` and pass it straight to
+the CLI, so **`supabase link` is not needed** — which matters here, because the
+project sits in LUCA's Supabase organisation and the local CLI is signed in as
+a different account.
+
+Two things about that URL, both of which cost an hour to find:
+
+- **Use the pooler host, not the direct one.** `db.<ref>.supabase.co` is
+  IPv6-only and unreachable from a machine without IPv6 egress. The working
+  host is `aws-0-ap-south-1.pooler.supabase.com:5432`, user `postgres.<ref>`.
+- **Percent-encode the password.** It contains an `@`, and a bare one makes the
+  URI parse the remainder as the hostname — with a confusing error, not a
+  clear one.
+
+### Grants are not automatic
+
+The project has **"Automatically expose new tables" OFF**, so a table created by
+a migration has privileges for nobody — the service role included — and every
+query returns `42501 permission denied`. GRANT and RLS are separate controls:
+GRANT decides whether a role may touch the table at all, RLS decides which rows
+it then sees. **Any new table needs an explicit grant** in a migration; see
+`20260828120500_grants.sql`. This is deliberate, so a table fails closed.
+
+## Mock accounts
+
+Three accounts, one per role, all with the password `LucaDemo2026!`:
+
+| Email | Role | Lands on |
+|---|---|---|
+| `admin@luca.test` | Admin | `/admin/dashboard` |
+| `crmmanager@luca.test` | CRM Manager | `/queue` |
+| `salesrep@luca.test` | Sales Rep | `/today` |
+
+These are for validating the build before the demo. `.test` is a reserved TLD
+that cannot receive mail, and accounts are created with `email_confirm`, so
+**nothing is ever emailed to anyone**. Real accounts for Vishal, Vaishali,
+Jennifer and the reps get created from Admin → Users at go-live, once LUCA has
+seen the demo and confirmed who should have what.
 
 ## How the code is organised
 

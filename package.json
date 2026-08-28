@@ -13,9 +13,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:push": "supabase db push",
+    "db:push": "set -a && . ./.env.local && set +a && supabase db push --db-url \"$SUPABASE_DB_URL\"",
     "db:seed": "tsx scripts/seed.ts",
-    "users:seed": "tsx scripts/seed-users.ts"
+    "users:seed": "tsx scripts/seed-users.ts",
+    "db:status": "set -a && . ./.env.local && set +a && supabase migration list --db-url \"$SUPABASE_DB_URL\""
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

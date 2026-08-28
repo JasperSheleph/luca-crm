@@ -9,8 +9,6 @@
  */
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { randomBytes } from "node:crypto";
-import { writeFileSync } from "node:fs";
 
 config({ path: ".env.local" });
 
@@ -28,23 +26,27 @@ const supabase = createClient(url, key, {
 type Role = "admin" | "crm_manager" | "sales_rep";
 
 /**
- * The real team. crm_manager is a role, not a person — add more holders here
- * or from Admin -> Users and nothing else changes.
+ * MOCK ACCOUNTS ONLY — one per role, for validating the build before the demo.
+ *
+ * Real accounts for Vishal, Vaishali, Jennifer and the reps get created from
+ * Admin -> Users at go-live, once LUCA has seen the demo and confirmed who
+ * should have what. Nothing here reaches a real person:
+ *
+ *   - `.test` is a reserved TLD (RFC 2606). It does not resolve and cannot
+ *     receive mail, so a stray send has nowhere to go.
+ *   - `email_confirm: true` marks the address confirmed without Supabase
+ *     sending a confirmation email.
+ *
+ * The password is shared and deliberately obvious. These accounts hold no real
+ * data and are deleted before go-live.
  */
-const PEOPLE: { name: string; email: string; role: Role }[] = [
-  { name: "Jasper Sheleph", email: "rjaspersheleph@gmail.com", role: "admin" },
-  { name: "Vishal",         email: "vishal@lucaelevators.com", role: "admin" },
-  { name: "Vaishali",       email: "vaishali@lucaelevators.com", role: "admin" },
-  { name: "Jennifer",       email: "jennifer@lucaelevators.com", role: "crm_manager" },
-  { name: "Rep One",        email: "rep1@lucaelevators.com", role: "sales_rep" },
-  { name: "Rep Two",        email: "rep2@lucaelevators.com", role: "sales_rep" },
-  { name: "Rep Three",      email: "rep3@lucaelevators.com", role: "sales_rep" },
-];
+const PASSWORD = "LucaDemo2026!";
 
-function password(): string {
-  // url-safe, no ambiguous characters to misread over the phone
-  return randomBytes(12).toString("base64url");
-}
+const PEOPLE: { name: string; email: string; role: Role }[] = [
+  { name: "Admin User",  email: "admin@luca.test",       role: "admin" },
+  { name: "CRM Manager", email: "crmmanager@luca.test",  role: "crm_manager" },
+  { name: "Sales Rep",   email: "salesrep@luca.test",    role: "sales_rep" },
+];
 
 async function main() {
   const created: { email: string; role: Role; password: string }[] = [];
@@ -57,7 +59,7 @@ async function main() {
     let id = found?.id;
 
     if (!id) {
-      const pw = password();
+      const pw = PASSWORD;
       const { data, error } = await supabase.auth.admin.createUser({
         email: person.email,
         password: pw,
@@ -82,25 +84,8 @@ async function main() {
     console.log(`  ${found ? "exists" : "created"}  ${person.role.padEnd(12)} ${person.email}`);
   }
 
-  if (created.length > 0) {
-    // Written to a gitignored file rather than stdout, so passwords do not end
-    // up in terminal scrollback, CI logs or a chat transcript.
-    const lines = [
-      "LUCA CRM — seeded accounts",
-      "Generated " + new Date().toISOString(),
-      "",
-      "Hand each person their own line, then delete this file.",
-      "Everyone should change their password after first sign-in.",
-      "",
-      ...created.map((c) => `${c.email.padEnd(34)} ${c.password}`),
-      "",
-    ];
-    writeFileSync(".seed-credentials.txt", lines.join("\n"), { mode: 0o600 });
-    console.log(`\n  ${created.length} new account(s). Passwords written to .seed-credentials.txt (gitignored, chmod 600).`);
-    console.log("  Hand them out, then delete that file.");
-  } else {
-    console.log("\n  No new accounts — everyone already existed.");
-  }
+  console.log(`\n  All three accounts use the password: ${PASSWORD}`);
+  console.log("  Mock accounts only. Real users are created from Admin -> Users at go-live.\n");
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
