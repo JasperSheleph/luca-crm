@@ -21,11 +21,25 @@ function SubmitButton() {
 export default function LoginForm() {
   const params = useSearchParams();
   const next = params.get("next") ?? "/";
+  const linkProblem = params.get("error");
   const [state, formAction] = useActionState<AuthState, FormData>(signIn, {});
+
+  // A password link is single-use and expires. Say so, rather than dropping
+  // someone on a bare sign-in form wondering what went wrong.
+  const linkMessage =
+    linkProblem === "link_expired"
+      ? "That password link has already been used or has expired. Ask an admin for a new one."
+      : linkProblem === "link_invalid"
+        ? "That password link is not valid. Ask an admin for a new one."
+        : null;
 
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="next" value={next} />
+
+      {linkMessage && (
+        <p className="rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">{linkMessage}</p>
+      )}
 
       <div>
         <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink">Email</label>

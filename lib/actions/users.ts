@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/db/admin";
 import { createClient } from "@/lib/db/server";
@@ -21,6 +22,23 @@ const NewUser = z.object({
   role: z.enum(["admin", "crm_manager", "sales_rep"]),
   phone: z.string().trim().optional(),
 });
+
+/**
+ * Builds the link an admin hands over in person.
+ *
+ * Supabase's own action_link redirects via the project's configured Site URL,
+ * which is one more thing to keep correct across localhost, staging and
+ * production. Using the hashed token against our own /auth/confirm route means
+ * the link always points at whatever host the admin is actually using.
+ */
+async function recoveryLink(hashedToken: string | undefined): Promise<string | undefined> {
+  if (!hashedToken) return undefined;
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return undefined;
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}/auth/confirm?token_hash=${hashedToken}&type=recovery&next=/reset-password`;
+}
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -66,8 +84,8 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
   revalidatePath("/admin/users");
   return {
     ok: true,
-    message: `${name} added. Give them the link below to set a password.`,
-    resetLink: link?.properties?.action_link,
+    message: `${name} added. Give them the link below so they can set a password.`,
+    resetLink: await recoveryLink(link?.properties?.hashed_token),
   };
 }
 
@@ -128,7 +146,7 @@ export async function resetPassword(_prev: UserActionState, formData: FormData):
 
   return {
     ok: true,
-    message: "Link generated. Nothing was emailed — copy it and give it to them directly.",
-    resetLink: data?.properties?.action_link,
+    message: "Link ready. Nothing was emailed — copy it and give it to them directly. It works once and then expires.",
+    resetLink: await recoveryLink(data?.properties?.hashed_token),
   };
 }

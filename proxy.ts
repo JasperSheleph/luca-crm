@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/api/leads/inbound", "/api/cron"];
+const PUBLIC_PATHS = ["/login", "/auth/confirm", "/api/leads/inbound", "/api/cron"];
 
 /**
  * Refreshes the Supabase session on every request and keeps unauthenticated
