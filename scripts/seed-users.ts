@@ -10,6 +10,7 @@
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
+import { writeFileSync } from "node:fs";
 
 config({ path: ".env.local" });
 
@@ -82,9 +83,23 @@ async function main() {
   }
 
   if (created.length > 0) {
-    console.log("\n  New passwords — copy these now, they are not stored anywhere:\n");
-    for (const c of created) console.log(`    ${c.email.padEnd(34)} ${c.password}`);
-    console.log("\n  Everyone should change their password after first sign-in.");
+    // Written to a gitignored file rather than stdout, so passwords do not end
+    // up in terminal scrollback, CI logs or a chat transcript.
+    const lines = [
+      "LUCA CRM — seeded accounts",
+      "Generated " + new Date().toISOString(),
+      "",
+      "Hand each person their own line, then delete this file.",
+      "Everyone should change their password after first sign-in.",
+      "",
+      ...created.map((c) => `${c.email.padEnd(34)} ${c.password}`),
+      "",
+    ];
+    writeFileSync(".seed-credentials.txt", lines.join("\n"), { mode: 0o600 });
+    console.log(`\n  ${created.length} new account(s). Passwords written to .seed-credentials.txt (gitignored, chmod 600).`);
+    console.log("  Hand them out, then delete that file.");
+  } else {
+    console.log("\n  No new accounts — everyone already existed.");
   }
 }
 

@@ -29,3 +29,6 @@ coverage/
 supabase/.temp/
 supabase/.branches/
 .supabase/
+
+# seeded account passwords - hand out then delete
+.seed-credentials.txt
