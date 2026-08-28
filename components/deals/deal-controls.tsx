@@ -10,6 +10,7 @@ import Card from "@/components/ui/card";
 import { Field, inputBase, inputClass } from "@/components/ui/field";
 import { STAGE_LABELS } from "@/lib/config/design-tokens";
 import type { DealStage } from "@/lib/domain/stages";
+import { useDealChanged } from "@/components/deals/use-deal-changed";
 import type { ListValue } from "@/lib/types";
 
 function Note({ state }: { state: DealActionState }) {
@@ -31,6 +32,7 @@ export function StageControl({
 }) {
   const [state, action, pending] = useActionState<DealActionState, FormData>(changeStage, {});
   const [target, setTarget] = useState<DealStage | "">("");
+  useDealChanged(state);
 
   const needsReason = target === "lost" || target === "not_pursued";
   const reasons = target === "lost" ? lossReasons : notPursuedReasons;
@@ -121,6 +123,7 @@ export function AssignControl({
   canAssignRep: boolean;
 }) {
   const [state, action] = useActionState<DealActionState, FormData>(assignDeal, {});
+  useDealChanged(state);
   if (!canAssignManager && !canAssignRep) return null;
 
   return (
@@ -169,6 +172,7 @@ export function NextActionControl({
   note: string | null;
 }) {
   const [state, action, pending] = useActionState<DealActionState, FormData>(setNextAction, {});
+  useDealChanged(state);
   return (
     <Card title="Next action">
       <form action={action} className="space-y-2">
@@ -206,6 +210,7 @@ export function QualificationPanel({
   // Collapsed by default, so it never stands between the user and logging a call.
   const [open, setOpen] = useState(missing.length > 0);
   const [state, action, pending] = useActionState<DealActionState, FormData>(updateQualification, {});
+  useDealChanged(state);
 
   const select = (name: string, label: string, listType: string) => (
     <Field key={name} label={label} htmlFor={name}>

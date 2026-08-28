@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { logActivity, type DealActionState } from "@/lib/actions/deals";
 import Button from "@/components/ui/button";
 import { inputClass } from "@/components/ui/field";
+import { useDealChanged } from "@/components/deals/use-deal-changed";
 import type { ListValue } from "@/lib/types";
 
 /**
@@ -23,6 +24,7 @@ export default function LogActivity({
 }) {
   const [state, action, pending] = useActionState<DealActionState, FormData>(logActivity, {});
   const [mode, setMode] = useState<"call" | "note" | "commitment">("call");
+  useDealChanged(state);
   const formRef = useRef<HTMLFormElement>(null);
 
   return (

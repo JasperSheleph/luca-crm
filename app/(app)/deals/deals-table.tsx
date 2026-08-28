@@ -14,6 +14,7 @@ import { DEAL_STAGES } from "@/lib/domain/stages";
 import { STAGE_LABELS } from "@/lib/config/design-tokens";
 import { telHref } from "@/lib/domain/phone";
 import { CITY_OTHER } from "@/lib/domain/city";
+import LeadDrawer, { type DrawerContext } from "@/components/deals/lead-drawer";
 // Type-only: erased at compile time, so it does not pull the server module in.
 import type { DealListRow } from "@/lib/queries/deals";
 
@@ -36,7 +37,7 @@ export interface BulkAssignConfig {
 }
 
 export default function DealsTable({
-  rows, total, page, perPage, options, showOwners = true, bulk,
+  rows, total, page, perPage, options, showOwners = true, bulk, drawer,
 }: {
   rows: DealListRow[];
   total: number;
@@ -46,6 +47,8 @@ export default function DealsTable({
   showOwners?: boolean;
   /** Omitted for the rep view, which has nothing to hand out. */
   bulk?: BulkAssignConfig;
+  /** Everything the slide-over needs that is the same for every lead. */
+  drawer: DrawerContext;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -54,6 +57,61 @@ export default function DealsTable({
   const [q, setQ] = useState(params.get("q") ?? "");
   const [moreOpen, setMoreOpen] = useState(!!params.get("campaign"));
   const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  /**
+   * The open lead lives in the URL so it survives a refresh and can be sent to
+   * someone — but it is written with the History API rather than router.push.
+   * A Next navigation would re-run the page's queries and rebuild the table for
+   * what is only an overlay, which makes arrow-keying through leads crawl.
+   */
+  const [openLead, setOpenLead] = useState<string | null>(() => params.get("lead"));
+
+  const showLead = (id: string | null, replace = false) => {
+    setOpenLead(id);
+    const sp = new URLSearchParams(window.location.search);
+    if (id) sp.set("lead", id); else sp.delete("lead");
+    const url = `${window.location.pathname}${sp.toString() ? `?${sp}` : ""}`;
+    if (replace) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
+  };
+
+  // Back and forward should move through the leads that were opened.
+  useEffect(() => {
+    const onPop = () => setOpenLead(new URLSearchParams(window.location.search).get("lead"));
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const openIndex = openLead ? rows.findIndex((r) => r.id === openLead) : -1;
+
+  const step = (direction: -1 | 1) => {
+    if (openIndex < 0) return;
+    const next = rows[openIndex + direction];
+    if (next) showLead(next.id, true);
+  };
+
+  // Escape closes; arrows walk the list. Ignored while typing, and while a
+  // filter dropdown is open — Escape belongs to that first.
+  useEffect(() => {
+    if (!openLead) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+
+      if (e.key === "Escape") {
+        if (document.querySelector("[role=listbox]")) return;
+        showLead(null);
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        step(e.key === "ArrowDown" ? 1 : -1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openLead, openIndex, rows]);
   const [assignState, assignAction, assignPending] = useActionState<DealActionState, FormData>(bulkAssign, {});
 
   const canBulk = !!bulk && (bulk.canAssignManager || bulk.canAssignRep);
@@ -303,10 +361,21 @@ export default function DealsTable({
             {rows.map((d) => {
               const due = dueLabel(d.next_action_at);
               const ticked = selected.has(d.id);
+              const isOpen = openLead === d.id;
               const tel = telHref(d.customer_phone);
               return (
-                <tr key={d.id} className={`border-b border-border last:border-0 ${ticked ? "bg-navy-100" : "hover:bg-navy-50"}`}>
-                  <td className="px-3 py-2">
+                <tr
+                  key={d.id}
+                  onClick={() => showLead(d.id)}
+                  aria-current={isOpen ? "true" : undefined}
+                  className={`cursor-pointer border-b border-border last:border-0 ${
+                    isOpen
+                      ? "bg-navy-100 shadow-[inset_3px_0_0_0_var(--navy-900)]"
+                      : ticked ? "bg-navy-100" : "hover:bg-navy-50"
+                  }`}
+                >
+                  {/* Ticking a box is selecting for a bulk action, not opening. */}
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox" checked={ticked} onChange={() => toggle(d.id)}
                       aria-label={`Select ${d.customer_name ?? d.customer_phone}`}
@@ -314,12 +383,22 @@ export default function DealsTable({
                     />
                   </td>
                   <td className="px-3 py-2">
-                    <Link href={`/deals/${d.id}`} className="font-medium text-ink hover:text-navy-700 hover:underline">
+                    {/* A real href, so cmd-click and middle-click still open the
+                        full page in a new tab. A plain click uses the drawer. */}
+                    <Link
+                      href={`/deals/${d.id}`}
+                      onClick={(e) => {
+                        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                        e.preventDefault();
+                        showLead(d.id);
+                      }}
+                      className="font-medium text-ink hover:text-navy-700 hover:underline"
+                    >
                       {d.customer_name || "Unnamed"}
                     </Link>
                     {d.is_repeat && <Badge tone="neutral">repeat</Badge>}
                   </td>
-                  <td className="tabular whitespace-nowrap px-3 py-2">
+                  <td className="tabular whitespace-nowrap px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     {tel
                       ? <a href={tel} className="text-navy-700 hover:underline">{d.customer_phone}</a>
                       : <span className="text-ink-muted">{d.customer_phone}</span>}
@@ -354,6 +433,14 @@ export default function DealsTable({
           </tbody>
         </table>
       </div>
+
+      <LeadDrawer
+        dealId={openLead}
+        ctx={drawer}
+        onClose={() => showLead(null)}
+        onStep={step}
+        position={openIndex >= 0 ? { index: openIndex, total: rows.length } : null}
+      />
 
       {pages > 1 && (
         <div className="flex items-center justify-between text-sm">

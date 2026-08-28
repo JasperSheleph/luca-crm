@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/db/server";
 import { listDeals, getDealFilterOptions, parseDealFilters, DEALS_PER_PAGE } from "@/lib/queries/deals";
 import { can } from "@/lib/domain/permissions";
+import { getListValuesFor } from "@/lib/queries/settings";
 import PageHeader from "@/components/ui/page-header";
 import DealsTable from "./deals-table";
 
@@ -15,10 +16,14 @@ export default async function Page({
   const page = Number(sp.page ?? 1);
 
   const supabase = await createClient();
-  const [{ rows, total }, options, { data: staff }] = await Promise.all([
+  const [{ rows, total }, options, { data: staff }, lists, { data: setting }] = await Promise.all([
     listDeals({ ...parseDealFilters((k) => sp[k]), page }),
     getDealFilterOptions(),
     supabase.from("users").select("id, name, role").eq("is_active", true).order("name"),
+    // The slide-over needs these, and they are the same for every lead — so
+    // they are read once here rather than on each /api/deals/[id] call.
+    getListValuesFor(["call_disposition", "loss_reason", "not_pursued_reason"]),
+    supabase.from("app_settings").select("value").eq("key", "required_fields_for_appointment").maybeSingle(),
   ]);
 
   return (
@@ -35,6 +40,11 @@ export default async function Page({
           worked. */}
       <DealsTable
         rows={rows} total={total} page={page} perPage={DEALS_PER_PAGE} options={options}
+        drawer={{
+          role: user.role,
+          requiredFieldsForAppointment: (setting?.value as string[]) ?? [],
+          lists,
+        }}
         bulk={{
           crmManagers: (staff ?? []).filter((u) => u.role === "crm_manager" || u.role === "admin"),
           reps: (staff ?? []).filter((u) => u.role === "sales_rep"),
