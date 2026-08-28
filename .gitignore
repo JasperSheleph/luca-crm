@@ -1,0 +1,26 @@
+# ---- secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- real customer data: names, phones, emails of ~2,800 people ----
+# Kept local for import testing. Never committed, private repo or not.
+/data/
+*.csv
+*.xlsx
+
+# ---- node / next ----
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- misc ----
+.DS_Store
+*.log
+npm-debug.log*
+.vercel
+coverage/
