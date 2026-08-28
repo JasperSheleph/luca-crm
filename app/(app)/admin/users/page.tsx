@@ -1,15 +1,18 @@
 import { requireRole } from "@/lib/auth";
+import { listUsers } from "@/lib/queries/users";
 import PageHeader from "@/components/ui/page-header";
-import Placeholder from "@/components/ui/placeholder";
+import UsersClient from "./users-client";
 
 export default async function Page() {
-  await requireRole("admin");
+  const me = await requireRole("admin");
+  const users = await listUsers();
   return (
     <>
-      <PageHeader title="Users" subtitle="Create, deactivate, assign roles, trigger a password reset" />
-      <Placeholder step="Build step 2">
-        Roles are admin, crm_manager and sales_rep. crm_manager is a role, not a person.
-      </Placeholder>
+      <PageHeader
+        title="Users"
+        subtitle="Admin and CRM Manager share screens; only the rep view is different."
+      />
+      <UsersClient users={users} currentUserId={me.id} />
     </>
   );
 }

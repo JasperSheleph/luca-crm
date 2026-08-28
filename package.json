@@ -16,7 +16,8 @@
     "db:push": "set -a && . ./.env.local && set +a && supabase db push --db-url \"$SUPABASE_DB_URL\"",
     "db:seed": "tsx scripts/seed.ts",
     "users:seed": "tsx scripts/seed-users.ts",
-    "db:status": "set -a && . ./.env.local && set +a && supabase migration list --db-url \"$SUPABASE_DB_URL\""
+    "db:status": "set -a && . ./.env.local && set +a && supabase migration list --db-url \"$SUPABASE_DB_URL\"",
+    "import:meta": "tsx scripts/import-meta.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
