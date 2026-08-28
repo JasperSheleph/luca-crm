@@ -14,7 +14,7 @@ values
 on conflict (id) do nothing;
 
 -- The first path segment is the deal id; scope access through that deal.
-create or replace function storage_deal_id(name text) returns uuid as $$
+create or replace function public.storage_deal_id(name text) returns uuid as $$
 declare seg text;
 begin
   seg := split_part(name, '/', 1);
@@ -22,15 +22,15 @@ begin
   return seg::uuid;
 exception when others then return null;
 end;
-$$ language plpgsql immutable;
+$$ language plpgsql immutable set search_path = public;
 
 create policy storage_read on storage.objects for select
   using (
     bucket_id in ('quotes','visit-photos')
     and (
-      is_staff()
+      public.is_staff()
       or exists (select 1 from deals d
-                 where d.id = storage_deal_id(storage.objects.name)
+                 where d.id = public.storage_deal_id(storage.objects.name)
                  and d.rep_owner_id = auth.uid())
     )
   );
@@ -39,13 +39,13 @@ create policy storage_insert on storage.objects for insert
   with check (
     bucket_id in ('quotes','visit-photos')
     and (
-      is_staff()
+      public.is_staff()
       or exists (select 1 from deals d
-                 where d.id = storage_deal_id(storage.objects.name)
+                 where d.id = public.storage_deal_id(storage.objects.name)
                  and d.rep_owner_id = auth.uid())
     )
   );
 
 -- Only admins remove stored files. A rep re-uploading should add, not replace.
 create policy storage_delete on storage.objects for delete
-  using (bucket_id in ('quotes','visit-photos') and is_admin());
+  using (bucket_id in ('quotes','visit-photos') and public.is_admin());
