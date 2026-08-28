@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/queries/users";
 import { can } from "@/lib/domain/permissions";
-import { listDeals } from "@/lib/queries/deals";
+import { listDeals, parseDealFilters } from "@/lib/queries/deals";
 import { STAGE_LABELS } from "@/lib/config/design-tokens";
 import type { DealStage } from "@/lib/domain/stages";
 
@@ -19,26 +19,18 @@ export async function GET(request: NextRequest) {
 
   const p = request.nextUrl.searchParams;
   const { rows } = await listDeals({
-    q: p.get("q") ?? undefined,
-    stage: p.get("stage") ?? undefined,
-    owner: p.get("owner") ?? undefined,
-    source: p.get("source") ?? undefined,
-    city: p.get("city") ?? undefined,
-    campaign: p.get("campaign") ?? undefined,
-    from: p.get("from") ?? undefined,
-    to: p.get("to") ?? undefined,
-    overdue: p.get("overdue") === "1",
-    uncontacted: p.get("uncontacted") === "1",
+    ...parseDealFilters((k) => p.get(k)),
     page: 1,
     perPage: 10000,
   });
 
   const columns: [string, (r: (typeof rows)[number]) => string | number | null][] = [
+    // Same order as the columns on screen, so the file matches what was exported.
     ["Name", (r) => r.customer_name],
     ["Phone", (r) => r.customer_phone],
+    ["Source", (r) => r.source_label],
     ["City", (r) => r.city],
     ["Stage", (r) => STAGE_LABELS[r.stage as DealStage] ?? r.stage],
-    ["Source", (r) => r.source_label],
     ["Campaign", (r) => r.campaign_name],
     ["CRM Manager", (r) => r.crm_owner_name],
     ["Sales Rep", (r) => r.rep_owner_name],

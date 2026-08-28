@@ -67,7 +67,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-paper px-4 py-3">
-        <StageBadge stage={deal.stage} />
+        <StageBadge stage={deal.stage} firstContactedAt={deal.first_contacted_at} />
         {tel ? (
           <a href={tel} className="tabular text-sm font-medium text-navy-700 hover:underline">
             {deal.customer_phone}

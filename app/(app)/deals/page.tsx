@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/db/server";
-import { listDeals, getDealFilterOptions, DEALS_PER_PAGE } from "@/lib/queries/deals";
+import { listDeals, getDealFilterOptions, parseDealFilters, DEALS_PER_PAGE } from "@/lib/queries/deals";
 import { can } from "@/lib/domain/permissions";
 import PageHeader from "@/components/ui/page-header";
 import DealsTable from "./deals-table";
@@ -16,12 +16,7 @@ export default async function Page({
 
   const supabase = await createClient();
   const [{ rows, total }, options, { data: staff }] = await Promise.all([
-    listDeals({
-      q: sp.q, stage: sp.stage, owner: sp.owner, source: sp.source,
-      city: sp.city, campaign: sp.campaign, from: sp.from, to: sp.to,
-      overdue: sp.overdue === "1", uncontacted: sp.uncontacted === "1",
-      page,
-    }),
+    listDeals({ ...parseDealFilters((k) => sp[k]), page }),
     getDealFilterOptions(),
     supabase.from("users").select("id, name, role").eq("is_active", true).order("name"),
   ]);

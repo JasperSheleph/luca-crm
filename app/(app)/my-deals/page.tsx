@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/auth";
-import { listDeals, getDealFilterOptions, DEALS_PER_PAGE } from "@/lib/queries/deals";
+import { listDeals, getDealFilterOptions, parseDealFilters, DEALS_PER_PAGE } from "@/lib/queries/deals";
 import PageHeader from "@/components/ui/page-header";
 import DealsTable from "../deals/deals-table";
 
@@ -15,10 +15,7 @@ export default async function Page({
   // No owner filter needed: RLS already limits this to the signed-in rep's
   // deals. Another rep's deal returns zero rows, not a hidden row.
   const [{ rows, total }, options] = await Promise.all([
-    listDeals({
-      q: sp.q, stage: sp.stage, city: sp.city, campaign: sp.campaign,
-      overdue: sp.overdue === "1", page,
-    }),
+    listDeals({ ...parseDealFilters((k) => sp[k]), page }),
     getDealFilterOptions(),
   ]);
 

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/db/server";
 import type { DealStage } from "@/lib/domain/stages";
 import type { Activity } from "@/lib/types";
+import { CITY_OTHER } from "@/lib/domain/city";
 
 export interface DealListRow {
   id: string;
@@ -33,11 +34,12 @@ export interface DealListRow {
 
 export interface DealFilters {
   q?: string;
-  stage?: string;
-  owner?: string;
-  source?: string;
-  city?: string;
-  campaign?: string;
+  /** Every list filter takes several values. An empty array means no filter. */
+  stage?: string[];
+  owner?: string[];
+  source?: string[];
+  city?: string[];
+  campaign?: string[];
   from?: string;
   to?: string;
   overdue?: boolean;
@@ -46,7 +48,49 @@ export interface DealFilters {
   perPage?: number;
 }
 
+
+
+/**
+ * Reads filters off the URL. List filters arrive comma-separated
+ * (`?stage=qualifying,negotiation`) so a filtered view stays shareable and
+ * Export can reuse the exact same parameters the page was showing.
+ *
+ * Shared by the deals page, my-deals and the export route — three callers that
+ * must agree on what a URL means or Export silently returns a different set.
+ */
+export function parseDealFilters(
+  get: (key: string) => string | undefined | null,
+): DealFilters {
+  const list = (key: string): string[] | undefined => {
+    const raw = get(key);
+    if (!raw) return undefined;
+    const values = raw.split(",").map((v) => v.trim()).filter(Boolean);
+    return values.length ? values : undefined;
+  };
+  const text = (key: string) => get(key) || undefined;
+
+  return {
+    q: text("q"),
+    stage: list("stage"),
+    owner: list("owner"),
+    source: list("source"),
+    city: list("city"),
+    campaign: list("campaign"),
+    from: text("from"),
+    to: text("to"),
+    overdue: get("overdue") === "1",
+    uncontacted: get("uncontacted") === "1",
+  };
+}
+
 export const DEALS_PER_PAGE = 50;
+
+async function getServiceAreaCities(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("app_settings").select("value").eq("key", "service_area_cities").maybeSingle();
+  return ((data?.value as string[]) ?? []).filter(Boolean);
+}
 
 /**
  * The deals list. RLS scopes it — a rep gets only their own rows, and this
@@ -66,11 +110,32 @@ export async function listDeals(f: DealFilters = {}): Promise<{ rows: DealListRo
     q = q.ilike("search_text", `%${digits.length >= 4 ? digits : term}%`);
   }
 
-  if (f.stage) q = q.eq("stage", f.stage);
-  if (f.source) q = q.eq("source_id", Number(f.source));
-  if (f.city) q = q.eq("city_normalized", f.city);
-  if (f.campaign) q = q.eq("campaign_name", f.campaign);
-  if (f.owner) q = q.or(`crm_owner_id.eq.${f.owner},rep_owner_id.eq.${f.owner}`);
+  if (f.stage?.length) q = q.in("stage", f.stage);
+  if (f.source?.length) q = q.in("source_id", f.source.map(Number));
+  if (f.campaign?.length) q = q.in("campaign_name", f.campaign);
+
+  // A deal matches if EITHER owner is one of the chosen people.
+  if (f.owner?.length) {
+    const ids = f.owner.join(",");
+    q = q.or(`crm_owner_id.in.(${ids}),rep_owner_id.in.(${ids})`);
+  }
+
+  if (f.city?.length) {
+    const towns = f.city.filter((c) => c !== CITY_OTHER);
+    const wantsOther = f.city.includes(CITY_OTHER);
+    const serviceArea = await getServiceAreaCities();
+
+    if (wantsOther && towns.length === 0) {
+      // Everything the alias map does not yet recognise.
+      q = q.not("city_normalized", "in", `(${serviceArea.join(",")})`);
+    } else if (wantsOther) {
+      q = q.or(
+        `city_normalized.in.(${towns.join(",")}),city_normalized.not.in.(${serviceArea.join(",")})`,
+      );
+    } else {
+      q = q.in("city_normalized", towns);
+    }
+  }
   if (f.from) q = q.gte("created_at", f.from);
   if (f.to) q = q.lte("created_at", `${f.to}T23:59:59`);
 
@@ -94,18 +159,28 @@ export async function listDeals(f: DealFilters = {}): Promise<{ rows: DealListRo
 /** Everything the list needs for its filter dropdowns, in one round trip. */
 export async function getDealFilterOptions() {
   const supabase = await createClient();
-  const [{ data: sources }, { data: users }, { data: campaigns }, { data: cities }] = await Promise.all([
-    supabase.from("list_values").select("id, label").eq("list_type", "lead_source").eq("is_active", true).order("sort_order"),
-    supabase.from("users").select("id, name, role").eq("is_active", true).order("name"),
-    supabase.from("deal_list_view").select("campaign_name").not("campaign_name", "is", null).limit(2000),
-    supabase.from("deal_list_view").select("city_normalized").not("city_normalized", "is", null).limit(2000),
-  ]);
+  const [{ data: sources }, { data: users }, { data: campaigns }, { data: cities }, serviceArea] =
+    await Promise.all([
+      supabase.from("list_values").select("id, label").eq("list_type", "lead_source").eq("is_active", true).order("sort_order"),
+      supabase.from("users").select("id, name, role").eq("is_active", true).order("name"),
+      supabase.from("deal_list_view").select("campaign_name").not("campaign_name", "is", null).limit(2000),
+      supabase.from("deal_list_view").select("city_normalized").not("city_normalized", "is", null).limit(2000),
+      getServiceAreaCities(),
+    ]);
+
+  // Only towns the alias map recognises AND that actually have leads — an
+  // option matching nothing is noise. Everything else collapses into Other.
+  const area = new Set(serviceArea);
+  const present = new Set((cities ?? []).map((c) => c.city_normalized as string));
+  const known = [...present].filter((c) => area.has(c)).sort();
+  const hasUnrecognised = [...present].some((c) => !area.has(c));
 
   return {
     sources: sources ?? [],
     users: users ?? [],
     campaigns: [...new Set((campaigns ?? []).map((c) => c.campaign_name as string))].sort(),
-    cities: [...new Set((cities ?? []).map((c) => c.city_normalized as string))].sort(),
+    cities: known,
+    hasUnrecognisedCities: hasUnrecognised,
   };
 }
 

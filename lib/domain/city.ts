@@ -9,6 +9,20 @@
  * Settings. Never hardcode an alias here.
  */
 
+/**
+ * The catch-all option in the city filter.
+ *
+ * The Meta lead form takes free text for city, so the raw values include
+ * pincodes, whole addresses and typos — most appearing exactly once. Listing
+ * them all makes the filter useless; hiding them would make those leads
+ * unreachable. Everything unrecognised collapses into this one option.
+ *
+ * Lives here rather than in lib/queries/deals.ts because the filter bar is a
+ * client component: importing a runtime value from the queries module drags
+ * next/headers into the browser bundle, which TypeScript cannot see.
+ */
+export const CITY_OTHER = "__other__";
+
 export function normalizeCity(
   raw: string | null | undefined,
   aliases: Record<string, string> = {},
