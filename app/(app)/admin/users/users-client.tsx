@@ -59,7 +59,9 @@ export default function UsersClient({ users, currentUserId }: { users: AppUser[]
                 <option value="admin">Admin</option>
               </select>
             </Field>
-            <Field label="Phone" htmlFor="phone" hint="Optional"><input id="phone" name="phone" className={inputClass} /></Field>
+            <Field label="Mobile number" htmlFor="phone" hint="Required — they can sign in with this instead of their email">
+              <input id="phone" name="phone" required inputMode="tel" placeholder="9566114558" className={inputClass} />
+            </Field>
             <div className="sm:col-span-2">
               <Button type="submit" disabled={creating}>{creating ? "Adding…" : "Add"}</Button>
             </div>
@@ -73,6 +75,7 @@ export default function UsersClient({ users, currentUserId }: { users: AppUser[]
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-ink-muted">
                 <th className="py-2 pr-3 font-medium">Name</th>
                 <th className="py-2 pr-3 font-medium">Email</th>
+                <th className="py-2 pr-3 font-medium">Mobile</th>
                 <th className="py-2 pr-3 font-medium">Role</th>
                 <th className="py-2 pr-3 font-medium">Status</th>
                 <th className="py-2 font-medium">Actions</th>
@@ -85,6 +88,7 @@ export default function UsersClient({ users, currentUserId }: { users: AppUser[]
                     {u.name}{u.id === currentUserId && <span className="ml-1 text-xs text-ink-muted">(you)</span>}
                   </td>
                   <td className="py-2 pr-3 text-ink-muted">{u.email}</td>
+                  <td className="tabular py-2 pr-3 text-ink-muted">{u.phone ?? "—"}</td>
                   <td className="py-2 pr-3">
                     <form action={rowAction} className="flex items-center gap-1">
                       <input type="hidden" name="intent" value="role" />

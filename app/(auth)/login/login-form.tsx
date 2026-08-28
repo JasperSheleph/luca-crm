@@ -42,9 +42,13 @@ export default function LoginForm() {
       )}
 
       <div>
-        <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink">Email</label>
+        <label htmlFor="identifier" className="mb-1 block text-sm font-medium text-ink">
+          Mobile number or email
+        </label>
         <input
-          id="email" name="email" type="email" required autoComplete="email" autoFocus
+          id="identifier" name="identifier" type="text" required
+          inputMode="text" autoComplete="username" autoFocus
+          placeholder="9566114558"
           className="w-full rounded-md border border-border bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-navy-700"
         />
       </div>

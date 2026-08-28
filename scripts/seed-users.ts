@@ -42,10 +42,10 @@ type Role = "admin" | "crm_manager" | "sales_rep";
  */
 const PASSWORD = "LucaDemo2026!";
 
-const PEOPLE: { name: string; email: string; role: Role }[] = [
-  { name: "Admin User",  email: "admin@luca.test",       role: "admin" },
-  { name: "CRM Manager", email: "crmmanager@luca.test",  role: "crm_manager" },
-  { name: "Sales Rep",   email: "salesrep@luca.test",    role: "sales_rep" },
+const PEOPLE: { name: string; email: string; role: Role; phone: string }[] = [
+  { name: "Admin User",  email: "admin@luca.test",      role: "admin",       phone: "9000000001" },
+  { name: "CRM Manager", email: "crmmanager@luca.test", role: "crm_manager", phone: "9000000002" },
+  { name: "Sales Rep",   email: "salesrep@luca.test",   role: "sales_rep",   phone: "9000000003" },
 ];
 
 async function main() {
@@ -74,7 +74,7 @@ async function main() {
     }
 
     const { error: profileError } = await supabase.from("users").upsert(
-      { id, name: person.name, email: person.email, role: person.role, is_active: true },
+      { id, name: person.name, email: person.email, role: person.role, phone: person.phone, is_active: true },
       { onConflict: "id" },
     );
     if (profileError) {
@@ -85,6 +85,7 @@ async function main() {
   }
 
   console.log(`\n  All three accounts use the password: ${PASSWORD}`);
+  console.log("  Each can sign in with its mobile number or its email.");
   console.log("  Mock accounts only. Real users are created from Admin -> Users at go-live.\n");
 }
 

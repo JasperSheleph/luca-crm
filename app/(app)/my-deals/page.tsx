@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
 import { listDeals, getDealFilterOptions, DEALS_PER_PAGE } from "@/lib/queries/deals";
 import PageHeader from "@/components/ui/page-header";
@@ -26,12 +25,10 @@ export default async function Page({
   return (
     <>
       <PageHeader title="My deals" subtitle="Everything assigned to you." />
-      <Suspense fallback={null}>
-        <DealsTable
-          rows={rows} total={total} page={page} perPage={DEALS_PER_PAGE}
-          options={options} showOwners={false}
-        />
-      </Suspense>
+      <DealsTable
+        rows={rows} total={total} page={page} perPage={DEALS_PER_PAGE}
+        options={options} showOwners={false}
+      />
     </>
   );
 }

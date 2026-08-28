@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import {
   previewMetaImport, commitMetaImport,
   type PreviewState, type CommitState,
@@ -14,6 +14,7 @@ export default function MetaImport() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [preview, previewAction, previewPending] = useActionState<PreviewState, FormData>(previewMetaImport, { ok: false });
   const [commit, commitAction, commitPending] = useActionState<CommitState, FormData>(commitMetaImport, { ok: false });
+  const previewButtonRef = useRef<HTMLButtonElement>(null);
 
   const p = preview.preview;
   const done = commit.result;
@@ -22,32 +23,46 @@ export default function MetaImport() {
     <form className="space-y-4">
       <Card
         title="Meta Lead Ads CSV"
-        description="Export from Meta, then check the file before importing. Nothing is written until you confirm."
+        description="Export from Meta and choose the file. You will see exactly what will happen before anything is written."
       >
         <input
           type="file" name="file" accept=".csv,text/csv" required
-          onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+          onChange={(e) => {
+            setFileName(e.target.files?.[0]?.name ?? null);
+            // Read it straight away. Asking someone to press "check" before
+            // they can press "import" is a step that exists only to explain
+            // itself — the file is chosen, so just say what is in it.
+            if (e.target.files?.length) e.currentTarget.form?.requestSubmit(previewButtonRef.current);
+          }}
           className="block w-full text-sm text-ink file:mr-3 file:rounded-md file:border-0 file:bg-navy-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-navy-800"
         />
-        {fileName && <p className="mt-2 text-xs text-ink-muted">Selected: {fileName}</p>}
+        {fileName && (
+          <p className="mt-2 text-xs text-ink-muted">
+            {previewPending ? `Reading ${fileName}…` : `Selected: ${fileName}`}
+          </p>
+        )}
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button formAction={previewAction} variant="secondary" disabled={previewPending || commitPending}>
-            {previewPending ? "Checking…" : "Check file"}
-          </Button>
-          {p && p.willImport > 0 && (
+        <button ref={previewButtonRef} type="submit" formAction={previewAction} className="hidden" aria-hidden="true" tabIndex={-1} />
+
+        {p && p.willImport > 0 && (
+          <div className="mt-4">
             <Button formAction={commitAction} disabled={commitPending || previewPending}>
               {commitPending ? `Importing ${p.willImport} leads…` : `Import ${p.willImport} leads`}
             </Button>
-          )}
-        </div>
+          </div>
+        )}
+        {p && p.willImport === 0 && !done && (
+          <p className="mt-4 rounded-md bg-navy-50 px-3 py-2 text-sm text-ink">
+            Nothing new to import — every lead in this file is already in the system.
+          </p>
+        )}
 
         {preview.error && <p role="alert" className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">{preview.error}</p>}
         {commit.error && <p role="alert" className="mt-3 rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">{commit.error}</p>}
       </Card>
 
       {p && !done && (
-        <Card title="What this file contains" description="Read this before importing.">
+        <Card title="What will happen" description="Nothing is written until you press Import.">
           <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
             <Stat label="Rows in file" value={p.totalRows} />
             <Stat label="Will import" value={p.willImport} tone="success" />

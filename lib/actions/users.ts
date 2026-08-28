@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/db/admin";
 import { createClient } from "@/lib/db/server";
 import { getCurrentUser } from "@/lib/queries/users";
 import { can } from "@/lib/domain/permissions";
+import { normalizePhone, isValidIndianMobile } from "@/lib/domain/phone";
 
 export interface UserActionState {
   ok?: boolean;
@@ -20,7 +21,13 @@ const NewUser = z.object({
   name: z.string().trim().min(1, "Enter a name"),
   email: z.email("Enter a valid email"),
   role: z.enum(["admin", "crm_manager", "sales_rep"]),
-  phone: z.string().trim().optional(),
+  // Mandatory: it doubles as a sign-in identifier, so an account without one
+  // cannot be reached by the people most likely to need it — the reps.
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Enter a mobile number")
+    .refine((v) => isValidIndianMobile(normalizePhone(v)), "That is not a valid Indian mobile number"),
 });
 
 /**
@@ -54,7 +61,7 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
     name: formData.get("name"),
     email: formData.get("email"),
     role: formData.get("role"),
-    phone: formData.get("phone") || undefined,
+    phone: formData.get("phone"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -71,12 +78,18 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
   }
 
   const { error: profileError } = await db.from("users").insert({
-    id: created.user.id, name, email, role, phone: phone ?? null, is_active: true,
+    id: created.user.id, name, email, role, phone, is_active: true,
   });
   if (profileError) {
     // Do not leave an auth user with no profile — it would block re-adding them.
     await db.auth.admin.deleteUser(created.user.id);
-    return { error: profileError.message };
+    // 23505 is the unique violation on phone_normalized. The raw message names
+    // an index, which means nothing to whoever is adding the user.
+    return {
+      error: profileError.code === "23505"
+        ? "Someone already uses that mobile number. Each person needs their own, because it is how they sign in."
+        : profileError.message,
+    };
   }
 
   const { data: link } = await db.auth.admin.generateLink({ type: "recovery", email });

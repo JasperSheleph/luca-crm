@@ -17,11 +17,12 @@ export const NAV: NavItem[] = [
   { href: "/today",            label: "Today",     roles: ["sales_rep"],                 mobile: true },
   { href: "/my-deals",         label: "My Deals",  roles: ["sales_rep"],                 mobile: true },
 
+  // Deals is one screen doing both jobs: find a lead, and hand several over.
+  // A separate Leads screen existed and was only confusing.
   { href: "/queue",            label: "Queue",     roles: ["admin", "crm_manager"],      mobile: true },
   { href: "/deals",            label: "Deals",     roles: ["admin", "crm_manager"],      mobile: true },
 
   { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                     mobile: true },
-  { href: "/admin/leads",      label: "Leads",     roles: ["admin"] },
   { href: "/admin/users",      label: "Users",     roles: ["admin"] },
   { href: "/admin/settings",   label: "Settings",  roles: ["admin"] },
   { href: "/admin/import",     label: "Import",    roles: ["admin"] },
