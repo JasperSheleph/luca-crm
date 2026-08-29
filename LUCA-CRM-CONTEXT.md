@@ -153,7 +153,7 @@ Users, roles, lead sources, call dispositions, loss reasons, not-pursued reasons
 
 | Decision | Choice |
 |---|---|
-| Auth | Email and password |
+| Auth | Password, with **either a mobile number or an email** as the identifier. A mobile is mandatory and unique for every user — reps work from phones and know their own number better than an assigned email. Not Supabase phone auth, which would need a paid SMS provider |
 | Offline support | None |
 | Data export | In-app export button, not a Google Sheets sync |
 | WhatsApp | Internal only, behind a feature flag. Template text locked; triggers editable |

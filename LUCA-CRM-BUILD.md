@@ -93,7 +93,6 @@ Organise so "where do I change X?" has an obvious answer months later. **Never m
     /today                # Rep
     /admin
       /dashboard
-      /leads              # All leads, bulk assign/reassign
       /users
       /settings
       /import
@@ -834,9 +833,13 @@ Her primary screen. **Ordered, not browsable.** She handles ~440 leads a month p
 One set of screens for Admin and CRM Manager, actions gated by `can()`. Reps see the same deal detail scoped by RLS.
 
 - **Search box — phone or name, single field.** The CRM Manager takes inbound calls from people already in the system; she must find them in one keystroke sequence, not by filtering. Match against `customers.phone_normalized` (partial, last-10-digit) and `customers.name`
-- Filters: stage, owner, source, city, campaign, date range, next-action overdue
-- Columns: customer, city, stage, owner, budget band, next action, age
+- Filters: stage, owner, source and city, **each taking several values at once**. Campaign sits behind a *More filters* disclosure — the names are date-stamped ad names that grow with every ad, two already cover 78% of leads, and nobody filters by it while working. Per-campaign analysis belongs on the dashboard
+- Also `Overdue` (the follow-up date has passed) and `Never called`
+- The city filter offers only recognised service-area towns plus a single **Other / unrecognised** option. The Meta form takes free text, so the raw column holds pincodes, addresses and typos
+- Columns: customer, phone, source, city, stage, owner, next action, age. Budget is deliberately absent — Meta does not supply it, so it renders empty on every row; it lives on the deal page and returns here once reps enter figures
+- **Bulk assignment lives on this screen**, behind a Select toggle, rather than a second one. An earlier design had a separate Admin → Leads; it duplicated this list and shipped without filters
 - **Export button** — downloads the current filtered view as CSV or Excel. This is what guarantees LUCA is never locked in
+- **Opening a lead** uses a slide-over beside the list, not a separate page: filters, scroll position and ticked rows all survive, so a queue can be worked through without a page load each time. Non-modal on purpose — no backdrop, the list stays interactive underneath. The open lead is `?lead=<id>` so it is linkable and survives a refresh; Escape closes and the arrow keys step between leads. Full-screen on a phone. *Open full deal* goes to the page described below
 - Deal detail:
   - Header: customer, phone with click-to-call, stage badge, owners
   - **Timeline** — reverse-chronological `activities`, append-only. This is the centrepiece of the screen, not a sidebar
@@ -941,6 +944,10 @@ The daily job handles: nurture wake-ups, overdue next actions, quote follow-up n
 ## 11. Build order
 
 Not separate phases — one build. But work in this sequence so each step is verifiable before the next depends on it.
+
+> **Steps 1–3 are done; step 4 is next.** See [`docs/PROGRESS.md`](docs/PROGRESS.md)
+> for what proved each one and for the decisions that have since superseded parts
+> of this document.
 
 1. **Schema, RLS, seed data, auth, app shell.** Verify: log in as each role, confirm navigation differs
 2. **Settings, Users, Importer A (Meta CSV).** Verify with the real file — expect **1,073 imported, 1 skipped, 22 invalid phone, ~11 repeats**. **Confirm `created_at` shows April–August dates, not today's.** If it shows today, every lead-age metric is silently wrong forever

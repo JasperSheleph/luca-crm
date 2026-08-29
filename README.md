@@ -6,9 +6,14 @@ Next.js (App Router) + TypeScript · Supabase (Postgres, Auth, Storage, RLS) · 
 The only external service is the WhatsApp Cloud API, behind a feature flag — the
 app is fully functional without it.
 
+**Start with [`CLAUDE.md`](CLAUDE.md)** for orientation and the rules that bite,
+then [`docs/PROGRESS.md`](docs/PROGRESS.md) for what is built and what is next.
+
 The specification lives in [`LUCA-CRM-BUILD.md`](LUCA-CRM-BUILD.md); the company
 background and the reasoning behind each decision in
-[`LUCA-CRM-CONTEXT.md`](LUCA-CRM-CONTEXT.md).
+[`LUCA-CRM-CONTEXT.md`](LUCA-CRM-CONTEXT.md). Where the spec disagrees with
+`docs/PROGRESS.md`, PROGRESS is right — it records the decisions that came out
+of actually using the thing.
 
 ---
 
