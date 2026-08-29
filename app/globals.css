@@ -52,6 +52,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* A lead open on a phone fills the screen, so the list behind it must not
+   scroll — iOS otherwise gives the swipe to the page underneath and the panel
+   appears frozen. Above md the drawer sits beside the list, which keeps
+   scrolling deliberately: it is not a modal. */
+@media (max-width: 767px) {
+  body.lead-open {
+    overflow: hidden;
+  }
+}
+
 /* Every amount, date and count column aligns on the digit. */
 .tabular, table td, table th {
   font-variant-numeric: tabular-nums;

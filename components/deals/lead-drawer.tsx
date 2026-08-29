@@ -104,6 +104,19 @@ export default function LeadDrawer({
   const open = !!dealId;
   const deal = payload?.deal;
 
+  /**
+   * Freeze the list behind while a lead is open.
+   *
+   * Only takes effect under md — see globals.css. On a phone the drawer is the
+   * whole screen, so nothing is lost, and without it iOS hands the swipe to the
+   * 3,000px table underneath and the drawer looks like it will not scroll. On
+   * desktop the list stays scrollable on purpose: the drawer is non-modal.
+   */
+  useEffect(() => {
+    document.body.classList.toggle("lead-open", open);
+    return () => document.body.classList.remove("lead-open");
+  }, [open]);
+
   const transitions: DealStage[] = deal
     ? allowedTransitions({
         role: ctx.role,
@@ -125,7 +138,7 @@ export default function LeadDrawer({
          full-screen view and should own the screen; the nav comes back the
          moment it closes. On desktop it sits beside the list, which keeps
          working underneath. */
-      className={`fixed inset-0 z-50 flex flex-col border-border bg-paper shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none md:inset-y-0 md:left-auto md:right-0 md:w-[34rem] md:border-l lg:w-[38rem] ${
+      className={`fixed inset-x-0 top-0 z-50 flex h-dvh flex-col border-border bg-paper shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none md:inset-x-auto md:right-0 md:w-[34rem] md:border-l lg:w-[38rem] ${
         open ? "translate-x-0" : "pointer-events-none translate-x-full"
       }`}
     >
@@ -174,7 +187,7 @@ export default function LeadDrawer({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4">
         {error && <p role="alert" className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
 
         {!deal && loading && (

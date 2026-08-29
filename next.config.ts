@@ -8,6 +8,20 @@ const nextConfig: NextConfig = {
   // The dev overlay badge sits bottom-left, exactly on top of the sidebar's
   // user block and Sign out button, and swallows clicks there during QA.
   devIndicators: false,
+
+  /**
+   * Lets a phone on the same Wi-Fi load this dev server.
+   *
+   * Next blocks cross-origin requests for /_next/dev resources by default, so
+   * reaching the laptop at its LAN address serves the HTML but refuses the
+   * JavaScript. The page then looks fine and does nothing: filters are dead and
+   * a row click falls through to the plain link instead of the slide-over.
+   *
+   * DEVELOPMENT ONLY — Next ignores this when built for production, so it is
+   * not a hole in the deployed app. If the laptop's address changes, update the
+   * entry below; `npm run dev:lan` prints the current one.
+   */
+  allowedDevOrigins: ["192.168.68.108", "192.168.68.*", "*.local"],
 };
 
 export default nextConfig;
