@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 // Deliberately minimal. This app must run on any Node host (Hostinger today).
@@ -5,6 +6,17 @@ import type { NextConfig } from "next";
 // which this CRM depends on entirely. See docs/DEPLOYMENT.md.
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+
+  /**
+   * Pin the project root.
+   *
+   * There is an unrelated package-lock.json sitting in the home directory above
+   * this repo, and Turbopack infers the root from the nearest lockfile — so it
+   * was reaching outside the project and warning about it on every build. On a
+   * build machine that guess could resolve modules from somewhere unintended,
+   * which is a bad thing to discover at deploy time.
+   */
+  turbopack: { root: path.resolve(__dirname) },
   // The dev overlay badge sits bottom-left, exactly on top of the sidebar's
   // user block and Sign out button, and swallows clicks there during QA.
   devIndicators: false,
