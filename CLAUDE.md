@@ -17,10 +17,15 @@ not caught up yet.
 1,073 real Meta leads are live in Supabase. Sign in as `9000000001` (or
 `admin@luca.test`) with `LucaDemo2026!` — the mobile number works as a login.
 
-Step 4 is the CRM Manager work queue, and its gate decides whether this product
-gets adopted at all: **log 20 RNRs and time it.** RNR is 30% of ~440 leads a
-month. If logging one is slower than typing into a spreadsheet cell, redesign
-before building anything further.
+Step 4 is the CRM Manager's work queue, and it is **not a new screen.** It
+extends `/deals` with saved presets and an oldest-first sort instead of building
+the `/queue` route the spec asks for. A second list beside Deals would repeat the
+`/admin/leads` mistake, and `/deals` already answers two of the five buckets as
+filters. The reasoning is in [`docs/PROGRESS.md`](docs/PROGRESS.md).
+
+What still has to be true: **logging a call is one interaction.** RNR is 30% of
+~440 leads a month, and it happens in the lead slide-over without a page load.
+Worth timing once against a spreadsheet cell before building further.
 
 ---
 

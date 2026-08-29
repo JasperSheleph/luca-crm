@@ -16,7 +16,7 @@ has not caught up.
 | 1 | Schema, RLS, storage, seed, auth, app shell | **Done** |
 | 2 | Settings, Users, Importer A (Meta CSV) | **Done** |
 | 3 | Deals list, deal detail, timeline, transitions, assignment | **Done** |
-| 4 | CRM Manager work queue | **Next** |
+| 4 | Work queue, as presets on `/deals` — not a `/queue` screen | **Next** |
 | 5 | Rep view, appointments, visits with geolocation, photos | Pending |
 | 6 | Verification gate, quotes | Pending |
 | 7 | Importer B (legacy tracker) | Pending |
@@ -43,11 +43,37 @@ timeline with IST timestamps and attribution; all five transitions landed in
 the required fields were filled, and Won demanded the advance. That deal was a
 real customer, so the test data was removed afterwards.
 
-### Step 4 is the one that matters
+### Step 4: presets on `/deals`, not a `/queue` screen
 
-The gate: **log 20 RNRs and time it.** RNR is 30% of ~440 leads a month. If it
-is slower than typing into a spreadsheet cell, redesign before building further.
-Everything else in this project is secondary to that number.
+The spec asks for a separate work queue at `/queue`. Building it would repeat the
+`/admin/leads` mistake — a second near-identical list beside Deals, which had to
+be deleted. `/deals` already answers two of the five buckets as filters:
+`?uncontacted=1` and `?overdue=1` (`lib/queries/deals.ts`).
+
+What `/deals` is genuinely missing is not a screen:
+
+- **Ordering.** `listDeals` sorts `created_at DESC` — right for searching, wrong
+  for working. A work queue is oldest-first: the lead that has waited three weeks
+  is the one costing money, and newest-first buries it on page 6 of 22. This is
+  the mechanism behind "leads wait weeks before anyone calls," named elsewhere as
+  their largest addressable loss
+- **Three missing buckets.** Awaiting verification (no filter on
+  `visit_verification_status`), nurture waking today (`nurture_wake_at` on or
+  before today, not merely stage `nurture`), and quotes past SLA — which has no
+  sent date on `deal_list_view` to compare against yet
+- **Speed.** Logging a call must be one interaction. That belongs in
+  `components/deals/lead-drawer.tsx`, which already does a non-modal slide-over
+  with History-API URL state — exactly the "advance without a page load"
+  behaviour `/queue` was going to be built for
+
+So step 4 is: five presets, an oldest-first sort, and one-interaction logging in
+the drawer. `/queue` gets deleted, and `homeFor("crm_manager")` in
+`lib/navigation.ts` — which still returns `/queue`, so the CRM Manager currently
+signs in onto a placeholder — repoints at the To Call preset.
+
+The number that still governs the design: **RNR is 30% of ~440 leads a month.**
+Build it to one keystroke, no page load, no form fields, then log 20 and time it
+against a spreadsheet cell before going further.
 
 ---
 
@@ -59,6 +85,7 @@ using the thing:
 | Change | Why |
 |---|---|
 | **`/admin/leads` deleted**, merged into `/deals` as a Select mode | Two near-identical screens, and Leads shipped with no filter controls at all. Redirects now |
+| **`/queue` dropped; the work queue is presets on `/deals`** | The same mistake as `/admin/leads`, one step later. Two of the five buckets are already filters; what was actually missing is oldest-first ordering, three more filters, and one-interaction logging in the slide-over that already exists |
 | **Sign in with mobile number or email**; mobile mandatory and unique | Reps work from phones and know their number better than an assigned email. Not Supabase phone auth — that needs a paid SMS provider |
 | **Leads open in a slide-over**, not a separate page | Reviewing a queue without losing filters or scroll. Non-modal; the list stays interactive. `?lead=<id>`, written with the History API so stepping through leads does not re-run the page's queries |
 | **Campaign moved behind More filters** | Date-stamped ad names that grow with every ad; two already cover 78% of leads. Per-campaign analysis belongs on the dashboard |

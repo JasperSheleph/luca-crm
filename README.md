@@ -77,7 +77,7 @@ Three accounts, one per role, all with the password `LucaDemo2026!`:
 | Email | Role | Lands on |
 |---|---|---|
 | `admin@luca.test` | Admin | `/admin/dashboard` |
-| `crmmanager@luca.test` | CRM Manager | `/queue` |
+| `crmmanager@luca.test` | CRM Manager | `/deals`, To Call preset |
 | `salesrep@luca.test` | Sales Rep | `/today` |
 
 These are for validating the build before the demo. `.test` is a reserved TLD
