@@ -116,6 +116,21 @@ a `.tsx` file, check whether it should have been a row.
 historical deals silently breaks reporting if it disappears. There is no delete
 button anywhere, by design.
 
+## Working from more than one machine
+
+Both machines share **one Supabase database** — git isolates your code, not your
+schema, so two branches applying migrations at once will quietly leave the
+database agreeing with neither. Run `npm run db:status` after every pull, and
+see [docs/WORKING-ON-TWO-MACHINES.md](docs/WORKING-ON-TWO-MACHINES.md) before
+touching a migration from a second machine.
+
+## Node version
+
+`.nvmrc` pins what to develop on; `engines` states the floor Next 16 needs
+(20.9). No upper bound is set on purpose — the version that actually constrains
+this project is whatever Hostinger offers, which is still unconfirmed. Pin it in
+both places once it is known.
+
 ## Data files
 
 The Meta export and the legacy tracker live in `data/`, which is **gitignored**.
