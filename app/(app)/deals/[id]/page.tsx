@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/db/server";
 import { getDeal, getTimeline, getCustomerHistory } from "@/lib/queries/deals";
+import { getDealWork } from "@/lib/queries/visits";
 import { getListValuesFor } from "@/lib/queries/settings";
 import { can, canViewDeal } from "@/lib/domain/permissions";
 import { allowedTransitions } from "@/lib/domain/stages";
@@ -17,6 +18,10 @@ import LogActivity from "@/components/deals/log-activity";
 import {
   StageControl, AssignControl, NextActionControl, QualificationPanel,
 } from "@/components/deals/deal-controls";
+import AppointmentPanel from "@/components/deals/appointment-panel";
+import VisitPanel from "@/components/deals/visit-panel";
+import VerificationPanel from "@/components/deals/verification-panel";
+import QuotesPanel from "@/components/deals/quotes-panel";
 import { age } from "@/components/deals/relative-time";
 
 const LISTS = [
@@ -32,10 +37,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!deal || !canViewDeal(user, deal)) notFound();
 
   const supabase = await createClient();
-  const [timeline, lists, history, { data: staff }, { data: setting }] = await Promise.all([
+  const [timeline, lists, history, work, { data: staff }, { data: setting }] = await Promise.all([
     getTimeline(id),
     getListValuesFor(LISTS),
     getCustomerHistory(deal.customer_id, id),
+    getDealWork(id),
     supabase.from("users").select("id, name, role").eq("is_active", true).order("name"),
     supabase.from("app_settings").select("value").eq("key", "required_fields_for_appointment").maybeSingle(),
   ]);
@@ -53,6 +59,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   const crmManagers = (staff ?? []).filter((u) => u.role === "crm_manager" || u.role === "admin");
   const reps = (staff ?? []).filter((u) => u.role === "sales_rep");
   const tel = telHref(deal.customer_phone);
+
+  // The visit a check-in should attach itself to. Cancelled and completed ones
+  // are history and must not capture a new visit.
+  const liveAppointment = work.appointments.find((a) =>
+    ["scheduled", "confirmed", "rescheduled"].includes(a.status),
+  );
 
   return (
     <>
@@ -96,6 +108,36 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <Card title="Log what happened">
             <LogActivity dealId={id} dispositions={lists.call_disposition ?? []} />
           </Card>
+
+          <AppointmentPanel
+            dealId={id}
+            appointments={work.appointments}
+            reps={reps}
+            defaultRepId={deal.rep_owner_id}
+            canSchedule={can(user, "schedule_appointment", deal)}
+          />
+
+          <VisitPanel
+            dealId={id}
+            visits={work.visits}
+            photos={work.photos}
+            appointmentId={liveAppointment?.id ?? null}
+            canCheckIn={can(user, "check_in_visit", deal)}
+          />
+
+          <VerificationPanel
+            dealId={id}
+            status={deal.visit_verification_status}
+            verifications={work.verifications}
+            canVerify={can(user, "run_verification_call", deal)}
+            canResolve={can(user, "resolve_failed_verification", deal)}
+          />
+
+          <QuotesPanel
+            dealId={id}
+            quotes={work.quotes}
+            canUpload={can(user, "upload_quote", deal)}
+          />
 
           <Card title="History" description={`${timeline.length} entr${timeline.length === 1 ? "y" : "ies"}, newest first`}>
             <Timeline entries={timeline} />

@@ -9,23 +9,27 @@ import StageBadge from "@/components/deals/stage-badge";
 import Timeline from "@/components/deals/timeline";
 import LogActivity from "@/components/deals/log-activity";
 import { StageControl, NextActionControl } from "@/components/deals/deal-controls";
+import VerificationPanel from "@/components/deals/verification-panel";
 import { age } from "@/components/deals/relative-time";
 import { allowedTransitions, type DealStage } from "@/lib/domain/stages";
 import { telHref } from "@/lib/domain/phone";
 import { formatAmount, formatDate } from "@/lib/config/design-tokens";
 import type { Role } from "@/lib/domain/permissions";
-import type { ListValue } from "@/lib/types";
+import type { ListValue, VisitVerification } from "@/lib/types";
 import type { DealDetail, TimelineEntry } from "@/lib/queries/deals";
 
 export interface DrawerContext {
   role: Role;
   requiredFieldsForAppointment: string[];
   lists: Record<string, ListValue[]>;
+  canVerify: boolean;
+  canResolveVerification: boolean;
 }
 
 interface Payload {
   deal: DealDetail;
   timeline: TimelineEntry[];
+  verifications: (VisitVerification & { verified_by_name: string | null })[];
 }
 
 /**
@@ -232,6 +236,18 @@ export default function LeadDrawer({
                 onLogged={onLogged}
               />
             </Card>
+
+            {/* The Awaiting-verification preset rings down this list, so the
+                call gets recorded here rather than on the full deal page.
+                Renders nothing on a deal with no visit to verify. */}
+            <VerificationPanel
+              key={deal.id}
+              dealId={deal.id}
+              status={deal.visit_verification_status}
+              verifications={payload!.verifications}
+              canVerify={ctx.canVerify}
+              canResolve={ctx.canResolveVerification}
+            />
 
             <StageControl
               dealId={deal.id}

@@ -17,8 +17,8 @@ has not caught up.
 | 2 | Settings, Users, Importer A (Meta CSV) | **Done** |
 | 3 | Deals list, deal detail, timeline, transitions, assignment | **Done** |
 | 4 | Work queue, as presets on `/deals` — not a `/queue` screen | **Built, not yet timed** |
-| 5 | Rep view, appointments, visits with geolocation, photos | Pending |
-| 6 | Verification gate, quotes | Pending |
+| 5 | Rep view, appointments, visits with geolocation, photos | **Built, not yet on a phone** |
+| 6 | Verification gate, quotes | **Built, not yet walked through** |
 | 7 | Importer B (legacy tracker) | Pending |
 | 8 | Notification engine, in-app centre, `pg_cron` | Pending |
 | 9 | Dashboard, export, health page | Pending |
@@ -98,6 +98,54 @@ Two presets — Awaiting verification and Quotes past SLA — correctly show not
 until steps 5 and 6 exist; their empty state says why rather than reading as a
 bug.
 
+### Steps 5 and 6
+
+**No migration.** Every table, policy, grant and bucket these needed already
+existed from step 1 — `appointments`, `visits`, `visit_verifications`, `quotes`,
+`attachments`, and both private storage buckets.
+
+**Step 5.** `/today` is two lists: visits booked for today and follow-ups past
+their date. An appointment is a commitment to someone else, an overdue next
+action one to yourself, and a rep owes both. The day window is computed in IST —
+a 23:00 IST appointment is 17:30 UTC, so a naive UTC day drops the late ones.
+Check-in is on `/today` itself, because a rep standing outside a building should
+not have to open the deal first; check-out needs notes, so it lives on the deal.
+
+Geolocation **never blocks**. A rep in a basement with no fix still has to be
+able to work, and refusing would only teach them to stop using the app — which
+costs more than an unlocated visit. A missing fix is recorded and shown, not
+prevented. It is a deterrent, not proof: the verification call is the real
+control.
+
+Photos are compressed in the browser to roughly 300 KB before upload. A current
+phone camera produces 3–5 MB frames and the bucket caps at 2 MB, so an untouched
+upload fails on the rep's own handset. Five per visit.
+
+Both buckets stay private and the tables store a **storage path, never a URL** —
+the anon key ships in the browser bundle, so a public bucket would let anyone
+holding it enumerate photographs of customers' homes. `/api/files` mints a
+five-minute signed URL, running as the signed-in user so the storage policies
+decide.
+
+**Step 6.** Checking out sets `visit_verification_status` to `pending`, which is
+what fills the Awaiting-verification queue and blocks a quote. A `failed` call
+freezes the deal — that rule was already in `lib/domain/stages.ts` and is not
+re-implemented anywhere. An admin resolution can only land on `confirmed` or
+`not_required`, never back on `failed`, and the note is mandatory: it is a
+judgement about a rep and should not be possible to make silently.
+
+The verification panel is in the slide-over as well as the deal page, so the
+Awaiting-verification preset can actually be rung down without a page load.
+Quotes stay on the full page — they involve a file, and it is not a
+many-times-a-day action.
+
+Quotes are versioned, never replaced. "What did we send them in March" is a
+question the spreadsheet could never answer.
+
+**Still to verify.** None of this has been run against the real data or on a
+phone. In particular: geolocation and the camera need HTTPS or localhost, so use
+`npm run dev:lan`; and the photo path only proves out on a real handset.
+
 ---
 
 ## Decisions that supersede the spec
@@ -108,6 +156,7 @@ using the thing:
 | Change | Why |
 |---|---|
 | **`/admin/leads` deleted**, merged into `/deals` as a Select mode | Two near-identical screens, and Leads shipped with no filter controls at all. Redirects now |
+| **Geolocation never blocks a check-in** | Spoofable anyway, so it was never proof. A basement with no fix must not stop a rep working; refusing teaches them to skip the app, which costs more than an unlocated visit. Recorded and shown when missing |
 | **A click logs and stays; a number key logs and advances** | The spec said "a single tap or keystroke". Making both advance is wrong: `Connected - Interested` and `Call back later` need a next action on *this* lead. The keyboard is the bulk path (`1 1 1` down the RNRs), the mouse the considered one. Avoids hard-coding which dispositions are "done" in a `.tsx`, which would have been a code change LUCA cannot make |
 | **`/queue` dropped; the work queue is presets on `/deals`** | The same mistake as `/admin/leads`, one step later. Two of the five buckets are already filters; what was actually missing is oldest-first ordering, three more filters, and one-interaction logging in the slide-over that already exists |
 | **Sign in with mobile number or email**; mobile mandatory and unique | Reps work from phones and know their number better than an assigned email. Not Supabase phone auth — that needs a paid SMS provider |

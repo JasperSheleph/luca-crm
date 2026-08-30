@@ -45,6 +45,8 @@ export default async function Page({
           role: user.role,
           requiredFieldsForAppointment: (setting?.value as string[]) ?? [],
           lists,
+          canVerify: can(user, "run_verification_call"),
+          canResolveVerification: can(user, "resolve_failed_verification"),
         }}
         bulk={{
           crmManagers: (staff ?? []).filter((u) => u.role === "crm_manager" || u.role === "admin"),

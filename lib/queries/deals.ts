@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/db/server";
 import type { DealStage } from "@/lib/domain/stages";
-import type { Activity } from "@/lib/types";
+import type { Activity, VerificationStatus } from "@/lib/types";
 import { CITY_OTHER } from "@/lib/domain/city";
 // The one IST wall-clock helper in the codebase. Reused rather than
 // reimplemented: a second date path is how "waking today" drifts a day.
@@ -21,7 +21,7 @@ export interface DealListRow {
   campaign_name: string | null;
   budget_amount: number | null;
   budget_band: string | null;
-  visit_verification_status: string;
+  visit_verification_status: VerificationStatus;
   crm_owner_id: string | null;
   rep_owner_id: string | null;
   source_id: number | null;
