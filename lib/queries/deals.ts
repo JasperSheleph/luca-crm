@@ -30,6 +30,7 @@ export interface DealListRow {
   rep_owner_name: string | null;
   last_activity_at: string | null;
   activity_count: number;
+  latest_quote_sent_at: string | null;
 }
 
 export interface DealFilters {
@@ -44,6 +45,8 @@ export interface DealFilters {
   to?: string;
   overdue?: boolean;
   uncontacted?: boolean;
+  /** Work presets read oldest-first; the browsable list stays newest-first. */
+  sort?: "oldest" | "newest";
   page?: number;
   perPage?: number;
 }
@@ -80,6 +83,10 @@ export function parseDealFilters(
     to: text("to"),
     overdue: get("overdue") === "1",
     uncontacted: get("uncontacted") === "1",
+    // What turns a filtered view into a work queue. Newest-first is right
+    // for searching and wrong for working: the lead that has waited three
+    // weeks is the one costing money, and newest-first buries it.
+    sort: get("sort") === "oldest" ? "oldest" : "newest",
   };
 }
 
@@ -150,7 +157,7 @@ export async function listDeals(f: DealFilters = {}): Promise<{ rows: DealListRo
   }
 
   const { data, count } = await q
-    .order("created_at", { ascending: false })
+    .order("created_at", { ascending: f.sort === "oldest" })
     .range((page - 1) * perPage, page * perPage - 1);
 
   return { rows: (data ?? []) as DealListRow[], total: count ?? 0 };

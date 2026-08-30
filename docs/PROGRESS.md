@@ -1,6 +1,6 @@
 # Where the build is
 
-*Updated 29 August 2026. Keep this current — it is what a new session reads to
+*Updated 30 August 2026. Keep this current — it is what a new session reads to
 find out what exists.*
 
 Read [`CLAUDE.md`](../CLAUDE.md) first. Where this file disagrees with
@@ -59,17 +59,27 @@ What `/deals` is genuinely missing is not a screen:
   their largest addressable loss
 - **Three missing buckets.** Awaiting verification (no filter on
   `visit_verification_status`), nurture waking today (`nurture_wake_at` on or
-  before today, not merely stage `nurture`), and quotes past SLA — which has no
-  sent date on `deal_list_view` to compare against yet
+  before today, not merely stage `nurture`), and quotes past SLA — which had no
+  sent date on `deal_list_view` to compare against. **`20260830120000` adds
+  `latest_quote_sent_at`; it is written but NOT YET APPLIED — run `db:push`.**
+  Both other buckets are pure filters over columns the view already carries
 - **Speed.** Logging a call must be one interaction. That belongs in
   `components/deals/lead-drawer.tsx`, which already does a non-modal slide-over
   with History-API URL state — exactly the "advance without a page load"
   behaviour `/queue` was going to be built for
 
 So step 4 is: five presets, an oldest-first sort, and one-interaction logging in
-the drawer. `/queue` gets deleted, and `homeFor("crm_manager")` in
-`lib/navigation.ts` — which still returns `/queue`, so the CRM Manager currently
-signs in onto a placeholder — repoints at the To Call preset.
+the drawer.
+
+**Done already.** `/queue` is a redirect, not a screen, matching what
+`/admin/leads` became — so old bookmarks keep working. It is off the nav,
+`revalidatePath("/queue")` is gone, and `homeFor("crm_manager")` now returns
+`TO_CALL_PRESET` from `lib/navigation.ts`, so she lands on never-contacted leads
+oldest-first instead of a placeholder. `listDeals` takes `?sort=oldest`
+(defaulting to newest-first, so `/deals`, `/my-deals` and Export are unchanged).
+
+**Still to build.** A control on `/deals` for the five presets, the two missing
+filters, and one-interaction logging in the drawer.
 
 The number that still governs the design: **RNR is 30% of ~440 leads a month.**
 Build it to one keystroke, no page load, no form fields, then log 20 and time it
@@ -109,6 +119,12 @@ using the thing:
   Real accounts get created from Admin → Users after the demo. **Nothing is ever
   emailed** — `.test` cannot receive mail and accounts are created confirmed
 - **WhatsApp is off** (`app_settings.whatsapp_enabled`) and stays off for MVP
+- **One migration is written but not applied**:
+  `20260830120000_deal_list_view_quote_sent.sql` adds `latest_quote_sent_at` to
+  `deal_list_view`. It was authored in an environment with no Supabase
+  credentials. Run `npm run db:status` then `npm run db:push` — until you do,
+  `DealListRow.latest_quote_sent_at` is a type with no column behind it and any
+  query selecting it fails at runtime while `tsc` stays happy
 
 ### Things that cost hours to discover
 
