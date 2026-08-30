@@ -60,9 +60,9 @@ What `/deals` is genuinely missing is not a screen:
 - **Three missing buckets.** Awaiting verification (no filter on
   `visit_verification_status`), nurture waking today (`nurture_wake_at` on or
   before today, not merely stage `nurture`), and quotes past SLA — which had no
-  sent date on `deal_list_view` to compare against. **`20260830120000` adds
-  `latest_quote_sent_at`; it is written but NOT YET APPLIED — run `db:push`.**
-  Both other buckets are pure filters over columns the view already carries
+  sent date on `deal_list_view` to compare against until `20260830120000` added
+  `latest_quote_sent_at`. All three are now pure filters over columns the view
+  already carries; none needs further schema
 - **Speed.** Logging a call must be one interaction. That belongs in
   `components/deals/lead-drawer.tsx`, which already does a non-modal slide-over
   with History-API URL state — exactly the "advance without a page load"
@@ -119,12 +119,8 @@ using the thing:
   Real accounts get created from Admin → Users after the demo. **Nothing is ever
   emailed** — `.test` cannot receive mail and accounts are created confirmed
 - **WhatsApp is off** (`app_settings.whatsapp_enabled`) and stays off for MVP
-- **One migration is written but not applied**:
-  `20260830120000_deal_list_view_quote_sent.sql` adds `latest_quote_sent_at` to
-  `deal_list_view`. It was authored in an environment with no Supabase
-  credentials. Run `npm run db:status` then `npm run db:push` — until you do,
-  `DealListRow.latest_quote_sent_at` is a type with no column behind it and any
-  query selecting it fails at runtime while `tsc` stays happy
+- **Schema is current through `20260830120000_deal_list_view_quote_sent.sql`**,
+  which added `latest_quote_sent_at` to `deal_list_view`
 
 ### Things that cost hours to discover
 
