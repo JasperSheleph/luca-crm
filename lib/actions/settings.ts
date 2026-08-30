@@ -123,6 +123,10 @@ const SETTING_SCHEMAS: Record<string, z.ZodTypeAny> = {
   verification_escalation_hours: z.number().int().positive(),
   whatsapp_enabled: z.boolean(),
   rep_initials_map: z.record(z.string(), z.string()),
+  stalled_deal_days: z.number().int().positive(),
+  // Bytes, so the Pro allowance (100 GB) fits without a unit to misread.
+  database_limit_bytes: z.number().int().positive(),
+  storage_limit_bytes: z.number().int().positive(),
 };
 
 export async function updateSetting(_prev: ActionState, formData: FormData): Promise<ActionState> {

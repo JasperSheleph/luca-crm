@@ -50,6 +50,9 @@ const SETTING_HELP: Record<string, { title: string; help: string }> = {
   verification_escalation_hours:   { title: "Verification escalation", help: "How long an unreachable verification call waits before both admins are told." },
   whatsapp_enabled:                { title: "WhatsApp messages", help: "Off until a WhatsApp number is registered. Everything still appears in the in-app notification centre either way." },
   rep_initials_map:                { title: "Rep initials", help: 'For the legacy tracker import: maps initials like "JN" to a person.' },
+  stalled_deal_days:               { title: "When a deal counts as stalled", help: "Days with nothing logged before the dashboard flags an open deal as going cold." },
+  database_limit_bytes:            { title: "Database allowance", help: "Whatever your Supabase plan includes, in bytes. Free is 536870912 (512 MB); Pro is 8589934592 (8 GB). Only used for the percentage on the Health page." },
+  storage_limit_bytes:             { title: "File storage allowance", help: "Whatever your Supabase plan includes, in bytes. Free is 1073741824 (1 GB); Pro is 107374182400 (100 GB). Only used for the percentage on the Health page." },
 };
 
 function Note({ state }: { state: ActionState }) {
@@ -125,6 +128,12 @@ function SettingControl({ settingKey, value }: { settingKey: string; value: unkn
       return <BooleanEditor value={value} label="Send WhatsApp messages as well as in-app notifications" />;
     case "verification_escalation_hours":
       return <NumberEditor value={value} suffix="hours before both admins are told" />;
+    case "stalled_deal_days":
+      return <NumberEditor value={value} suffix="days with nothing logged" />;
+    case "database_limit_bytes":
+      return <NumberEditor value={value} suffix="bytes — 8589934592 on Supabase Pro" />;
+    case "storage_limit_bytes":
+      return <NumberEditor value={value} suffix="bytes — 107374182400 on Supabase Pro" />;
     case "quote_followup_days":
       return <NumberListEditor value={value} suffix="days after the quote goes out" />;
     case "service_area_cities":

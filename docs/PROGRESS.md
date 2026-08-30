@@ -21,7 +21,7 @@ has not caught up.
 | 6 | Verification gate, quotes | **Built, not yet walked through** |
 | 7 | Importer B (legacy tracker) | Pending |
 | 8 | Notification engine, in-app centre, `pg_cron` | Pending |
-| 9 | Dashboard, export, health page | Pending |
+| 9 | Dashboard, export, health page | **Built, migration not applied** |
 | 10 | `SCHEMA.md`, `DEPLOYMENT.md`, `MAKING-CHANGES.md`, `ADMIN-GUIDE.md` | Pending |
 
 ### What proved each step
@@ -146,6 +146,57 @@ question the spreadsheet could never answer.
 phone. In particular: geolocation and the camera need HTTPS or localhost, so use
 `npm run dev:lan`; and the photo path only proves out on a real handset.
 
+### Step 9
+
+**Export was already done** in step 3 (`app/(app)/deals/export/route.ts`), so this
+was the dashboard and the health page.
+
+Every number is computed in `lib/domain/metrics.ts` — pure, no database, 25
+tests. Aggregating ~1,800 rows in JavaScript rather than SQL is deliberate: it
+keeps "what does win rate mean" in one readable file instead of split between a
+view and a component, and at this size the cost is unmeasurable. Revisit at ten
+thousand rows.
+
+Things decided while building it:
+
+- **The funnel shows six stages, not nine.** Lost, Not Pursued and Nurture are
+  parallel exits, not steps a deal passes through; drawing them as bars would
+  invent a funnel that narrows for reasons it does not narrow for. They are
+  counted separately underneath
+- **Win rate and cycle time say so when there is nothing to measure.** No deal
+  has closed in this system yet. The page states that in words rather than
+  showing a confident-looking `0%`, and repeats that the old tracker's 2 Won
+  across 1,762 rows is not a baseline
+- **Median, not mean,** for lead age and cycle time. A handful of leads called
+  after four months would drag an average somewhere no actual lead lives
+- **Campaigns need 10 leads to appear** in the rate comparison. Three leads and
+  one contact reads as 33%, which is noise presented as a finding
+- **A non-zero bar always renders.** Four deals out of a thousand is 0.4% — a
+  sub-pixel mark identical to zero, which is the one distinction the chart owes
+  the reader. Caught by screenshotting the real markup, not by any test
+- **One hue per chart, never a value-ramp.** Bar length already encodes size;
+  colouring darker-where-bigger spends the only free channel saying it twice.
+  The funnel is the exception and uses each stage's own badge colour, which is
+  identity the reader already knows — and every row is labelled, so nothing
+  rests on colour alone
+
+The health page needs one **`security definer`** function, `system_health()` —
+`pg_database_size()`, the storage total and the failed-job count are not
+readable by `authenticated`, and `notifications_log` is read-own under RLS so an
+admin cannot count anyone else's failures from the client. Security definer
+bypasses RLS by design, so the function checks `is_admin()` itself; that check is
+the only thing protecting it.
+
+Percentages are measured against **three new settings rows** —
+`database_limit_bytes`, `storage_limit_bytes`, `stalled_deal_days` — because the
+allowance is a property of the Supabase plan and changes the day LUCA move to
+Pro. A plan change should be a row edit, not a deploy.
+
+⚠ **`20260830140000_health.sql` is NOT applied.** Until it is, the health page
+shows "Could not read" for storage, database and failed jobs, and the dashboard
+falls back to a 21-day stalled threshold. Run `npm run db:status` then
+`npm run db:push`.
+
 ---
 
 ## Decisions that supersede the spec
@@ -156,6 +207,7 @@ using the thing:
 | Change | Why |
 |---|---|
 | **`/admin/leads` deleted**, merged into `/deals` as a Select mode | Two near-identical screens, and Leads shipped with no filter controls at all. Redirects now |
+| **`warning` and `danger` are nearly the same colour** | Measured, not guessed: `#B45309` and `#B42318` are ΔE 8.6 apart in normal vision and 5.4 under deutan — below the threshold where anyone can tell two marks apart by hue. Every status on the Health page therefore carries a word and a symbol as well as a colour. Worth fixing in `globals.css` one day; the badges have the same problem |
 | **Geolocation never blocks a check-in** | Spoofable anyway, so it was never proof. A basement with no fix must not stop a rep working; refusing teaches them to skip the app, which costs more than an unlocated visit. Recorded and shown when missing |
 | **A click logs and stays; a number key logs and advances** | The spec said "a single tap or keystroke". Making both advance is wrong: `Connected - Interested` and `Call back later` need a next action on *this* lead. The keyboard is the bulk path (`1 1 1` down the RNRs), the mouse the considered one. Avoids hard-coding which dispositions are "done" in a `.tsx`, which would have been a code change LUCA cannot make |
 | **`/queue` dropped; the work queue is presets on `/deals`** | The same mistake as `/admin/leads`, one step later. Two of the five buckets are already filters; what was actually missing is oldest-first ordering, three more filters, and one-interaction logging in the slide-over that already exists |
