@@ -40,6 +40,7 @@ export default async function Page({
           worked. */}
       <DealsTable
         rows={rows} total={total} page={page} perPage={DEALS_PER_PAGE} options={options}
+        showPresets
         drawer={{
           role: user.role,
           requiredFieldsForAppointment: (setting?.value as string[]) ?? [],

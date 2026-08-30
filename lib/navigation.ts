@@ -1,4 +1,5 @@
 import type { Role } from "@/lib/domain/permissions";
+import { presetHref, TO_CALL } from "@/lib/domain/presets";
 
 export interface NavItem {
   href: string;
@@ -36,9 +37,10 @@ export function navFor(role: Role): NavItem[] {
 /**
  * The CRM Manager's "To Call" preset: never contacted, oldest first. Her
  * landing page, and where the retired /queue route sends anyone with a
- * bookmark. Defined once here because two callers must not drift apart.
+ * bookmark. Derived from the preset list so the chip she clicks and the page
+ * she lands on can never drift apart.
  */
-export const TO_CALL_PRESET = "/deals?uncontacted=1&sort=oldest";
+export const TO_CALL_PRESET = presetHref(TO_CALL);
 
 /** Where each role lands after signing in. */
 export function homeFor(role: Role): string {

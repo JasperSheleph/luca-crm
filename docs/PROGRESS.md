@@ -16,7 +16,7 @@ has not caught up.
 | 1 | Schema, RLS, storage, seed, auth, app shell | **Done** |
 | 2 | Settings, Users, Importer A (Meta CSV) | **Done** |
 | 3 | Deals list, deal detail, timeline, transitions, assignment | **Done** |
-| 4 | Work queue, as presets on `/deals` — not a `/queue` screen | **Next** |
+| 4 | Work queue, as presets on `/deals` — not a `/queue` screen | **Built, not yet timed** |
 | 5 | Rep view, appointments, visits with geolocation, photos | Pending |
 | 6 | Verification gate, quotes | Pending |
 | 7 | Importer B (legacy tracker) | Pending |
@@ -78,12 +78,25 @@ the drawer.
 oldest-first instead of a placeholder. `listDeals` takes `?sort=oldest`
 (defaulting to newest-first, so `/deals`, `/my-deals` and Export are unchanged).
 
-**Still to build.** A control on `/deals` for the five presets, the two missing
-filters, and one-interaction logging in the drawer.
+**Also done.** Five preset chips on `/deals`, defined once in
+`lib/domain/presets.ts` and covered by `tests/presets.test.ts`. Applying one
+replaces the filter state rather than adding to it — these are views of the
+work, not extra conditions — and narrowing a preset by city keeps it selected.
+The three missing filters are in `listDeals`: `verification=pending`,
+`waking=1`, `quotesla=1`. Waking compares against **today in IST** via the
+existing `istParts`, because on a UTC server a 05:00 IST deal wakes a day late.
+The SLA window is the last value in `quote_followup_days`, read from settings so
+LUCA can change it without a deploy.
 
-The number that still governs the design: **RNR is 30% of ~440 leads a month.**
-Build it to one keystroke, no page load, no form fields, then log 20 and time it
-against a spreadsheet cell before going further.
+**One interaction per lead.** In the slide-over, pressing a disposition's number
+logs it and moves to the next lead; RNR is seeded first, so RNR is always `1`.
+Clicking deliberately does not advance — see the decisions table.
+
+**Still to verify.** The number that governs the design: **RNR is 30% of ~440
+leads a month.** Log 20 with the `1` key and time it against a spreadsheet cell.
+Two presets — Awaiting verification and Quotes past SLA — correctly show nothing
+until steps 5 and 6 exist; their empty state says why rather than reading as a
+bug.
 
 ---
 
@@ -95,6 +108,7 @@ using the thing:
 | Change | Why |
 |---|---|
 | **`/admin/leads` deleted**, merged into `/deals` as a Select mode | Two near-identical screens, and Leads shipped with no filter controls at all. Redirects now |
+| **A click logs and stays; a number key logs and advances** | The spec said "a single tap or keystroke". Making both advance is wrong: `Connected - Interested` and `Call back later` need a next action on *this* lead. The keyboard is the bulk path (`1 1 1` down the RNRs), the mouse the considered one. Avoids hard-coding which dispositions are "done" in a `.tsx`, which would have been a code change LUCA cannot make |
 | **`/queue` dropped; the work queue is presets on `/deals`** | The same mistake as `/admin/leads`, one step later. Two of the five buckets are already filters; what was actually missing is oldest-first ordering, three more filters, and one-interaction logging in the slide-over that already exists |
 | **Sign in with mobile number or email**; mobile mandatory and unique | Reps work from phones and know their number better than an assigned email. Not Supabase phone auth — that needs a paid SMS provider |
 | **Leads open in a slide-over**, not a separate page | Reviewing a queue without losing filters or scroll. Non-modal; the list stays interactive. `?lead=<id>`, written with the History API so stepping through leads does not re-run the page's queries |

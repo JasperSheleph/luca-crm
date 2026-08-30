@@ -37,13 +37,18 @@ interface Payload {
  * that, "Open full deal" goes to the real page.
  */
 export default function LeadDrawer({
-  dealId, ctx, onClose, onStep, position,
+  dealId, ctx, onClose, onStep, onLogged, position,
 }: {
   dealId: string | null;
   ctx: DrawerContext;
   onClose: () => void;
   /** Move to the previous/next lead in the list currently on screen. */
   onStep: (direction: -1 | 1) => void;
+  /**
+   * A call was logged by keystroke rather than click — move on. This is what
+   * makes running down the queue one interaction per lead instead of two.
+   */
+  onLogged?: () => void;
   position: { index: number; total: number } | null;
 }) {
   const [payload, setPayload] = useState<Payload | null>(null);
@@ -216,8 +221,16 @@ export default function LeadDrawer({
               <p className="text-sm text-ink-muted">Budget {formatAmount(deal.budget_amount)}</p>
             ) : null}
 
+            {/* Keyed on the deal: stepping to the next lead must not carry
+                over a half-typed note, the chosen tab, or the pending state of
+                the log that just fired. */}
             <Card title="Log what happened">
-              <LogActivity dealId={deal.id} dispositions={ctx.lists.call_disposition ?? []} />
+              <LogActivity
+                key={deal.id}
+                dealId={deal.id}
+                dispositions={ctx.lists.call_disposition ?? []}
+                onLogged={onLogged}
+              />
             </Card>
 
             <StageControl
@@ -251,6 +264,7 @@ export default function LeadDrawer({
           </Link>
           <span className="ml-3 text-xs text-ink-muted">
             Esc closes · <kbd>↑</kbd> <kbd>↓</kbd> move between leads
+            {onLogged && <> · <kbd>1</kbd> logs RNR and moves on</>}
           </span>
         </footer>
       )}
