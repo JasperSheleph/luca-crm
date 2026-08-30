@@ -21,7 +21,7 @@ has not caught up.
 | 6 | Verification gate, quotes | **Built, not yet walked through** |
 | 7 | Importer B (legacy tracker) | Pending |
 | 8 | Notification engine, in-app centre, `pg_cron` | Pending |
-| 9 | Dashboard, export, health page | **Built, migration not applied** |
+| 9 | Dashboard, export, health page | **Built, not yet read on real data** |
 | 10 | `SCHEMA.md`, `DEPLOYMENT.md`, `MAKING-CHANGES.md`, `ADMIN-GUIDE.md` | Pending |
 
 ### What proved each step
@@ -192,10 +192,13 @@ Percentages are measured against **three new settings rows** —
 allowance is a property of the Supabase plan and changes the day LUCA move to
 Pro. A plan change should be a row edit, not a deploy.
 
-⚠ **`20260830140000_health.sql` is NOT applied.** Until it is, the health page
-shows "Could not read" for storage, database and failed jobs, and the dashboard
-falls back to a 21-day stalled threshold. Run `npm run db:status` then
-`npm run db:push`.
+`20260830140000_health.sql` is applied, so both pages read live numbers.
+
+⚠ **The two allowances are seeded at the FREE tier** — 512 MB database, 1 GB
+storage. That is correct today and wrong the moment Supabase Pro is bought:
+the percentages would read roughly sixteen and a hundred times too high, which
+is exactly the kind of false alarm that teaches people to ignore a health page.
+Change both in Admin → Settings on the day the plan changes.
 
 ---
 
@@ -234,8 +237,9 @@ using the thing:
   Real accounts get created from Admin → Users after the demo. **Nothing is ever
   emailed** — `.test` cannot receive mail and accounts are created confirmed
 - **WhatsApp is off** (`app_settings.whatsapp_enabled`) and stays off for MVP
-- **Schema is current through `20260830120000_deal_list_view_quote_sent.sql`**,
-  which added `latest_quote_sent_at` to `deal_list_view`
+- **Schema is current through `20260830140000_health.sql`** — `20260830120000`
+  added `latest_quote_sent_at` to `deal_list_view`; `20260830140000` added the
+  `system_health()` function and three settings rows
 
 ### Things that cost hours to discover
 
