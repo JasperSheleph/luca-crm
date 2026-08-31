@@ -14,6 +14,7 @@ import {
   type NotificationRule, type TriggerKey,
 } from "@/lib/domain/notifications";
 import { TIMEZONE } from "@/lib/config/design-tokens";
+import { presetHref, OVERDUE, TO_CALL } from "@/lib/domain/presets";
 import { loadEngineContext, notify, type EngineContext, type NotifyResult } from "./dispatch";
 
 /** Stages a deal is no longer being worked in. Mirrors the deals list filters. */
@@ -26,9 +27,15 @@ function istTime(at: string): string {
   }).format(new Date(at));
 }
 
-/** Where a person should land when the notification is about their own workload. */
+/**
+ * Where a person should land when the notification is about their own workload.
+ *
+ * Not /queue — that screen was retired in step 4 and is now a redirect. A
+ * notification should land on the rows it is about, sorted the way they are
+ * worked, which is exactly what the Overdue preset is.
+ */
 function workQueueFor(role: string | undefined): string {
-  return role === "sales_rep" ? "/my-deals" : "/queue";
+  return role === "sales_rep" ? "/my-deals" : presetHref(OVERDUE);
 }
 
 export interface JobReport {
@@ -143,7 +150,7 @@ const uncontactedLeads: Job = async ({ db, ctx, rule, now }) => {
     triggerKey: "uncontacted_leads",
     vars: { count, days },
     scope: ymd,
-    href: "/deals?uncontacted=1",
+    href: presetHref(TO_CALL),
   }, ctx)];
 };
 
@@ -177,6 +184,64 @@ const dailySummary: Job = async ({ db, ctx, now }) => {
     scope: ymd,
     href: "/admin/dashboard",
   }, ctx)];
+};
+
+/**
+ * The escalation Admin -> Settings has always promised.
+ *
+ * A verification call that went unanswered leaves the deal in `unreachable`,
+ * which is neither confirmed nor frozen — it just sits. After the number of
+ * hours in `app_settings.verification_escalation_hours` the owners are told,
+ * because nobody else is going to notice.
+ *
+ * Keyed on the verification call, not the day: this escalates once per
+ * unanswered call, never every morning about the same stuck deal. A fresh
+ * call that also goes unanswered is a new event and escalates again.
+ */
+const verificationEscalation: Job = async ({ db, ctx, now }) => {
+  const { data: setting } = await db
+    .from("app_settings").select("value").eq("key", "verification_escalation_hours").maybeSingle();
+  const hours = Number(setting?.value ?? 48);
+  if (!Number.isFinite(hours) || hours <= 0) return [];
+
+  const cutoff = new Date(now.getTime() - hours * 3_600_000).toISOString();
+
+  // The unanswered call itself, on deals still sitting in `unreachable`.
+  const { data } = await db
+    .from("visit_verifications")
+    .select("id, deal_id, called_at, deals!inner(visit_verification_status, rep_owner_id, customers(name)), users:verified_by(name)")
+    .eq("outcome", "unreachable")
+    .is("resolved_at", null)
+    .lt("called_at", cutoff)
+    .eq("deals.visit_verification_status", "unreachable");
+
+  const rows = (data ?? []) as unknown as {
+    id: number;
+    deal_id: string;
+    called_at: string;
+    deals: { rep_owner_id: string | null; customers: { name: string | null } | null } | null;
+  }[];
+
+  const out: NotifyResult[] = [];
+  for (const row of rows) {
+    // The real elapsed time, not the threshold. The check runs once a day, so
+    // "after 48 hours" would often be a lie by a few hours; this never is.
+    const elapsed = Math.floor((now.getTime() - new Date(row.called_at).getTime()) / 3_600_000);
+    const repId = row.deals?.rep_owner_id;
+
+    out.push(await notify(db, {
+      triggerKey: "verification_unreachable_escalation",
+      vars: {
+        customer_name: row.deals?.customers?.name ?? "Unnamed lead",
+        hours: elapsed,
+        rep_name: repId ? ctx.users.get(repId)?.name ?? null : null,
+      },
+      dealId: row.deal_id,
+      scope: `verification:${row.id}`,
+      href: `/deals/${row.deal_id}`,
+    }, ctx));
+  }
+  return out;
 };
 
 interface AppointmentRow {
@@ -262,4 +327,5 @@ const JOBS: Partial<Record<TriggerKey, Job>> = {
   daily_summary: dailySummary,
   appointment_tomorrow: appointmentTomorrow,
   appointment_approaching: appointmentApproaching,
+  verification_unreachable_escalation: verificationEscalation,
 };

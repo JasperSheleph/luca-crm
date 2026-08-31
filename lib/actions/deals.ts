@@ -2,11 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
-import { createAdminClient } from "@/lib/db/admin";
 import { getCurrentUser } from "@/lib/queries/users";
 import { can, canViewDeal } from "@/lib/domain/permissions";
 import { canTransition, type DealStage } from "@/lib/domain/stages";
-import { notify, type NotifyInput } from "@/lib/notifications/dispatch";
+import { fireNotification, dealNotificationVars } from "@/lib/notifications/from-action";
 import { formatAmount } from "@/lib/config/design-tokens";
 import type { AppUser } from "@/lib/types";
 
@@ -35,37 +34,6 @@ function refresh(dealId: string) {
   revalidatePath("/deals");
   revalidatePath("/my-deals");
   revalidatePath("/notifications");
-}
-
-/**
- * Tell someone, without ever putting the work at risk.
- *
- * notify() already swallows its own failures; this also catches
- * createAdminClient() throwing on a server with no service-role key. An
- * assignment that succeeded must not report failure because a message did not
- * go out — the notification is a courtesy, the assignment is the record.
- */
-async function fireNotification(input: NotifyInput): Promise<void> {
-  try {
-    await notify(createAdminClient(), input);
-  } catch {
-    // Deliberately silent. The deal is already saved.
-  }
-}
-
-/** The three things the lead_assigned template names. One extra read, on assignment only. */
-async function leadVars(supabase: Client, deal: Record<string, unknown>) {
-  const [{ data: customer }, source] = await Promise.all([
-    supabase.from("customers").select("name").eq("id", String(deal.customer_id)).maybeSingle(),
-    deal.source_id
-      ? supabase.from("list_values").select("label").eq("id", Number(deal.source_id)).maybeSingle()
-      : Promise.resolve({ data: null as { label: string } | null }),
-  ]);
-  return {
-    customer_name: customer?.name ?? "Unnamed lead",
-    city: (deal.city as string | null) ?? null,
-    source: source.data?.label ?? null,
-  };
 }
 
 /* ------------------------------------------------------------- activities */
@@ -196,7 +164,7 @@ export async function changeStage(_prev: DealActionState, formData: FormData): P
     await fireNotification({
       triggerKey: "deal_won",
       vars: {
-        customer_name: (await leadVars(supabase, deal)).customer_name,
+        customer_name: (await dealNotificationVars(supabase, deal)).customer_name,
         amount: formatAmount(advance),
       },
       dealId,
@@ -248,7 +216,7 @@ export async function assignDeal(_prev: DealActionState, formData: FormData): Pr
 
     await fireNotification({
       triggerKey: "lead_assigned",
-      vars: await leadVars(supabase, deal),
+      vars: await dealNotificationVars(supabase, deal),
       dealId,
       dealOwnerIds: [userId],
       href: `/deals/${dealId}`,

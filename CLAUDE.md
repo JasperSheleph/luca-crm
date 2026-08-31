@@ -12,11 +12,18 @@ not caught up yet.
 
 ## Where we are
 
-**Steps 1–3 of the ten-step build order are done, and step 8 (notifications) is
-built ahead of order. Step 4 is still next, and still the one that matters.**
+**Steps 1–9 are built. Nothing is proven.** Step 10 is documentation, and the
+gap that matters now is not code — it is that almost none of this has been
+exercised against the real database by a real person.
 
 1,073 real Meta leads are live in Supabase. Sign in as `9000000001` (or
 `admin@luca.test`) with `LucaDemo2026!` — the mobile number works as a login.
+
+Before anything else is built, in this order: **time 20 RNRs** (step 4's gate,
+below), **open the rep view on an actual phone** (step 5), **walk one deal
+through visit → verification → quote** (step 6), and **turn the notification
+schedule on** (below). Each of those is a thing that can only fail in reality,
+and each is cheaper to find now than after handover.
 
 Step 4 is the CRM Manager's work queue, and it is **not a new screen.** It
 extends `/deals` with saved presets and an oldest-first sort instead of building
@@ -28,8 +35,10 @@ What still has to be true: **logging a call is one interaction.** RNR is 30% of
 ~440 leads a month, and it happens in the lead slide-over without a page load.
 Worth timing once against a spreadsheet cell before building further.
 
-Notifications are wired but the schedule is **not live** — `npm run db:push`
-then `npm run cron:setup`. See [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md).
+Notifications are built but the schedule is **not live**, and three migrations
+are **written but not applied**. `npm run db:push` then `npm run cron:setup`.
+Until both are run, nothing timed fires and Admin → Health says so in as many
+words. See [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md).
 
 ---
 

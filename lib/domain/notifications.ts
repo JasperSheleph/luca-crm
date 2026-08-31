@@ -107,6 +107,7 @@ export const TRIGGER_KEYS = [
   "deal_won",
   "daily_summary",
   "uncontacted_leads",
+  "verification_unreachable_escalation",
 ] as const;
 
 export type TriggerKey = (typeof TRIGGER_KEYS)[number];

@@ -8,8 +8,8 @@ Read [`../CLAUDE.md`](../CLAUDE.md) first, then [`PROGRESS.md`](PROGRESS.md).
 
 ## What it does, in one paragraph
 
-Nine rules live as rows in `notification_rules`. Four of them fire the moment
-something happens; five fire on a clock the database keeps. Either way the
+Ten rules live as rows in `notification_rules`. Four of them fire the moment
+something happens; six fire on a clock the database keeps. Either way the
 message is rendered and written to `notifications_log`, which is what the
 in-app notification centre reads. If WhatsApp is switched on, the same message
 also goes out through Meta's Cloud API — but nothing depends on that being
@@ -102,7 +102,7 @@ skip, never an error:
 3. `notification_templates.is_approved` is true for that template, and
    `meta_template_name` holds the name Meta approved.
 
-All nine templates ship with `is_approved = false`. Meta reviews each message
+All ten templates ship with `is_approved = false`. Meta reviews each message
 body individually and that review is a lead time you cannot compress, so start
 it early if WhatsApp matters for go-live.
 
@@ -127,39 +127,40 @@ that needs no approval is email, and it is not currently built.
 
 ---
 
-## What is wired, and what is waiting
+## The ten rules
 
-| Trigger | Fires from | Status |
+| Trigger | Fires from | Goes to |
 |---|---|---|
-| `lead_assigned` | `assignDeal`, `ingestLead` | **Live** |
-| `deal_won` | `changeStage` → won | **Live** |
-| `next_action_overdue` | daily job | **Live** |
-| `uncontacted_leads` | weekly job | **Live** |
-| `daily_summary` | daily job | **Live** |
-| `appointment_tomorrow` | daily job | Live, but `appointments` is written by step 5 |
-| `appointment_approaching` | offset job | Live, but `appointments` is written by step 5 |
-| `visit_awaiting_verification` | visit completion | Waiting on step 5 |
-| `verification_failed` | verification call | Waiting on step 6 |
+| `lead_assigned` | `assignDeal`, `ingestLead` | whoever now owns it |
+| `deal_won` | `changeStage` → won | admins |
+| `visit_awaiting_verification` | `completeVisit` | CRM Manager |
+| `verification_failed` | `recordVerification` → failed | admins |
+| `next_action_overdue` | daily, 09:00 | each owner, their own count |
+| `appointment_tomorrow` | daily, 19:00 | the rep, one per visit |
+| `appointment_approaching` | 2 h before | the rep |
+| `daily_summary` | daily, 19:00 | admins |
+| `uncontacted_leads` | weekly, Mon 09:00 | admins |
+| `verification_unreachable_escalation` | daily, 09:00 | admins |
 
-The last two have no call site yet. The engine handles them; they need one line
-in the action that step 5 and 6 will add.
+All ten have a call site. The first four fire from the server action that
+causes them; the rest come off the clock.
 
-**`bulkAssign` deliberately sends nothing.** Handing over two hundred leads
-would put two hundred messages in one person's centre and on their phone, which
-is how a notification system gets muted. The leads appear in their queue anyway.
-The single-deal path notifies; bulk is a visible administrative act.
+**Two paths deliberately send nothing.** `bulkAssign` is silent — handing over
+two hundred leads would put two hundred messages in one person's centre, and
+the leads appear in their queue anyway. The Meta CSV importer is silent for the
+same reason, and structurally so: it goes through `prepareLead`, not
+`ingestLead`, so it never reaches the engine at all.
 
-**The Meta CSV importer sends nothing either**, for the same reason — it goes
-through `prepareLead`, not `ingestLead`, so the 1,073-row import path never
-touches the engine.
-
----
+**Notification links point at work presets**, not at `/queue` — that route has
+been a redirect since step 4. "11 deals are overdue" lands on the Overdue
+preset, oldest first, which is the eleven deals in the order they are worked.
 
 ## Where things live
 
 ```
 lib/domain/notifications.ts   Pure: when a rule is due, who gets it, IST maths
 lib/notifications/dispatch.ts The ONE send path. notify() — no second route
+lib/notifications/from-action.ts  Firing one from a server action
 lib/notifications/jobs.ts     The scheduled job bodies
 lib/notifications/whatsapp.ts The Cloud API call. Guarded three ways
 app/api/cron/route.ts         Where pg_cron knocks
@@ -176,16 +177,30 @@ message is a courtesy.
 
 ## When something is wrong
 
-**Nobody is getting anything.** Check `select run_notification_cron();` returns
-`posted to …` rather than `not configured` — if it is the latter, run
-`npm run cron:setup`. Then check `cron.job_run_details` for the last runs.
+**Start at Admin → Health.** The "Reminder schedule" row answers the only
+question worth asking first — is the clock running at all? It says "Not set
+up" if `cron:setup` has never been run, "Never run" if pg_cron cannot reach
+the site, and flags anything older than an hour, because the job runs every
+fifteen minutes. Below it, "Notifications sent, last 24 hours" is the positive
+signal: zero failures means nothing when nothing was sent.
 
-**A rule stopped firing.** Look at `is_enabled` in Admin → Settings first;
-that is the likeliest answer and someone can turn it off by accident.
+If you need to go deeper, from the Supabase SQL editor:
+
+```sql
+select run_notification_cron();                       -- fire one tick now
+select * from cron.job_run_details order by start_time desc limit 10;
+```
+
+**A rule stopped firing.** Check `is_enabled` in Admin → Settings first. That
+is the likeliest answer and it can be switched off by accident.
 
 **Messages arrive at the wrong hour.** Something is comparing UTC. Everything
 scheduled must go through `isRuleDue()` / `istDayRange()`, which are tested for
 exactly this.
+
+**Someone is being told the same thing twice.** The scheduled path cannot do
+that — the unique index on `dedupe_key` makes it impossible. Look for a second
+call site instead: a notification sent from anywhere but `notify()` is the bug.
 
 **The badge is wrong.** It is `getUnreadCount()` in the app layout, computed per
 request. A stale one means a `revalidatePath` was missed after a write.
