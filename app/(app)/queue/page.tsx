@@ -1,15 +1,13 @@
-import { requireRole } from "@/lib/auth";
-import PageHeader from "@/components/ui/page-header";
-import Placeholder from "@/components/ui/placeholder";
+import { redirect } from "next/navigation";
+import { TO_CALL_PRESET } from "@/lib/navigation";
 
-export default async function Page() {
-  await requireRole("admin", "crm_manager");
-  return (
-    <>
-      <PageHeader title="Work queue" subtitle="To call, awaiting verification, overdue, waking today, quotes past SLA" />
-      <Placeholder step="Build step 4">
-        Ordered, not browsable. Logging an RNR must be a single keystroke &mdash; RNR is 30% of all outcomes, and this is the adoption test for the whole system.
-      </Placeholder>
-    </>
-  );
+/**
+ * The work queue was specified as a screen of its own. It is not one: /deals
+ * already answered two of its five buckets as filters, and a second
+ * near-identical list beside Deals is the mistake /admin/leads already made.
+ * The queue is now presets on /deals — a filter combination plus an
+ * oldest-first sort. This redirect keeps old links and bookmarks working.
+ */
+export default function Page() {
+  redirect(TO_CALL_PRESET);
 }

@@ -88,7 +88,6 @@ Organise so "where do I change X?" has an obvious answer months later. **Never m
   /(app)
     /deals                # Shared, role-gated
       /[id]
-    /queue                # CRM Manager work queue
     /my-deals             # Rep
     /today                # Rep
     /admin
@@ -816,17 +815,21 @@ The Meta record is authoritative for `created_at`, `campaign_name`, `city` and `
 
 ## 9. Screens
 
-### CRM Manager work queue — desktop-first
+### CRM Manager work queue — presets on the Deals screen
 
-Her primary screen. **Ordered, not browsable.** She handles ~440 leads a month plus verification calls, so this must tell her what to do next rather than invite exploration.
+Her primary way of working. **Ordered, not browsable.** She handles ~440 leads a month plus verification calls, so this must tell her what to do next rather than invite exploration.
 
-1. **To Call** — newly assigned leads, never contacted
-2. Visits awaiting verification
-3. Overdue next actions
-4. Nurture leads waking today
-5. Quotes sent with no response past SLA
+**This is not a separate screen.** An earlier draft of this document specified a `/queue` route; it was dropped for the same reason `Admin → Leads` was — a second near-identical list beside Deals. The queue is five saved presets on `/deals`, each a filter combination plus a sort:
 
-**Logging a call must be one interaction.** RNR is 30% of outcomes — there should be a single tap or keystroke that logs "RNR, today" and advances to the next lead, without opening a form. Everything else about this build is secondary to getting this right; if it's slower than typing into a spreadsheet cell, the CRM will not be adopted.
+1. **To Call** — never contacted (`?uncontacted=1`, already built)
+2. Visits awaiting verification — needs a `visit_verification_status` filter
+3. Overdue next actions (`?overdue=1`, already built)
+4. Nurture leads waking today — `nurture_wake_at` on or before today, not merely stage `nurture`
+5. Quotes sent with no response past SLA — needs a quote-sent timestamp on `deal_list_view`
+
+**Ordering is the point, and the default list sort is wrong for it.** `listDeals` sorts newest-first, which is right for searching and wrong for working: the lead that has waited three weeks is the one costing money. Every preset sorts oldest-first.
+
+**Logging a call must be one interaction.** RNR is 30% of outcomes — a single tap or keystroke logs "RNR, today" and moves to the next lead without opening a form or reloading the page. This lives in the lead slide-over, which already steps between leads with the arrow keys and no page load.
 
 ### Deals interface — shared, role-gated
 
@@ -835,6 +838,7 @@ One set of screens for Admin and CRM Manager, actions gated by `can()`. Reps see
 - **Search box — phone or name, single field.** The CRM Manager takes inbound calls from people already in the system; she must find them in one keystroke sequence, not by filtering. Match against `customers.phone_normalized` (partial, last-10-digit) and `customers.name`
 - Filters: stage, owner, source and city, **each taking several values at once**. Campaign sits behind a *More filters* disclosure — the names are date-stamped ad names that grow with every ad, two already cover 78% of leads, and nobody filters by it while working. Per-campaign analysis belongs on the dashboard
 - Also `Overdue` (the follow-up date has passed) and `Never called`
+- **Work presets** — the five queue views above, each one a filter combination plus an oldest-first sort, applied from a control on this screen. They are URL state like every other filter, so a preset is linkable and Export returns exactly what is on screen
 - The city filter offers only recognised service-area towns plus a single **Other / unrecognised** option. The Meta form takes free text, so the raw column holds pincodes, addresses and typos
 - Columns: customer, phone, source, city, stage, owner, next action, age. Budget is deliberately absent — Meta does not supply it, so it renders empty on every row; it lives on the deal page and returns here once reps enter figures
 - **Bulk assignment lives on this screen**, behind a Select toggle, rather than a second one. An earlier design had a separate Admin → Leads; it duplicated this list and shipped without filters
@@ -952,7 +956,7 @@ Not separate phases — one build. But work in this sequence so each step is ver
 1. **Schema, RLS, seed data, auth, app shell.** Verify: log in as each role, confirm navigation differs
 2. **Settings, Users, Importer A (Meta CSV).** Verify with the real file — expect **1,073 imported, 1 skipped, 22 invalid phone, ~11 repeats**. **Confirm `created_at` shows April–August dates, not today's.** If it shows today, every lead-age metric is silently wrong forever
 3. **Deals interface, deal detail, timeline, stage transitions, assignment.** Verify: walk one deal from Qualifying to Won, checking every step appears in the timeline
-4. **CRM Manager work queue.** Verify: log 20 RNRs. **Time it.** If it's slower than typing into a spreadsheet, redesign before going further
+4. **Work queue as presets on `/deals`** — five preset views, oldest-first sort, one-interaction logging in the slide-over. No `/queue` screen. Verify: log 20 RNRs. **Time it.** If it's slower than typing into a spreadsheet, redesign before going further
 5. **Rep view, appointments, visits with geolocation, photos.** Verify on an actual phone
 6. **Verification gate, quotes.** Verify: a failed verification freezes the deal and an admin can unfreeze it
 7. **Importer B (legacy tracker).** Run *after* Importer A — the order is required. Verify: **~700 new legacy deals and zero duplicate deals for the 1,031 matched rows**, remarks survive both as a full original note and as parsed call activities, and `RP` initials resolved to reps

@@ -1,6 +1,6 @@
 # Where the build is
 
-*Updated 29 August 2026. Keep this current — it is what a new session reads to
+*Updated 30 August 2026. Keep this current — it is what a new session reads to
 find out what exists.*
 
 Read [`CLAUDE.md`](../CLAUDE.md) first. Where this file disagrees with
@@ -16,12 +16,12 @@ has not caught up.
 | 1 | Schema, RLS, storage, seed, auth, app shell | **Done** |
 | 2 | Settings, Users, Importer A (Meta CSV) | **Done** |
 | 3 | Deals list, deal detail, timeline, transitions, assignment | **Done** |
-| 4 | CRM Manager work queue | **Next** |
-| 5 | Rep view, appointments, visits with geolocation, photos | Pending |
-| 6 | Verification gate, quotes | Pending |
-| 7 | Importer B (legacy tracker) | Pending |
-| 8 | Notification engine, in-app centre, `pg_cron` | **Done** — out of order, see below |
-| 9 | Dashboard, export, health page | Pending |
+| 4 | Work queue, as presets on `/deals` — not a `/queue` screen | **Built, not yet timed** |
+| 5 | Rep view, appointments, visits with geolocation, photos | **Built, not yet on a phone** |
+| 6 | Verification gate, quotes | **Built, not yet walked through** |
+| 7 | Importer B (legacy tracker) | **Built — NOT yet run** |
+| 8 | Notification engine, in-app centre, `pg_cron` | **Built — schedule NOT yet live** |
+| 9 | Dashboard, export, health page | **Built, not yet read on real data** |
 | 10 | `SCHEMA.md`, `DEPLOYMENT.md`, `MAKING-CHANGES.md`, `ADMIN-GUIDE.md` | Pending |
 
 ### What proved each step
@@ -43,20 +43,210 @@ timeline with IST timestamps and attribution; all five transitions landed in
 the required fields were filled, and Won demanded the advance. That deal was a
 real customer, so the test data was removed afterwards.
 
-**Step 8** — built out of order, ahead of steps 4–7. Nothing in it depends on
-those steps, and the two triggers that do (`visit_awaiting_verification`,
-`verification_failed`) are supported by the engine and simply have no call site
-yet. 92 domain tests pass, `next build` is clean, and the whole chain —
-`pg_cron` → `run_notification_cron()` → `POST /api/cron` → `runDueJobs()` →
-`notifications_log` → the in-app centre — is in place. **Not yet verified
-against the live database**: `db:push` and `cron:setup` have not been run, so
-the schedule is not live. See [`NOTIFICATIONS.md`](NOTIFICATIONS.md).
+### Step 4: presets on `/deals`, not a `/queue` screen
 
-### Step 4 is the one that matters
+The spec asks for a separate work queue at `/queue`. Building it would repeat the
+`/admin/leads` mistake — a second near-identical list beside Deals, which had to
+be deleted. `/deals` already answers two of the five buckets as filters:
+`?uncontacted=1` and `?overdue=1` (`lib/queries/deals.ts`).
 
-The gate: **log 20 RNRs and time it.** RNR is 30% of ~440 leads a month. If it
-is slower than typing into a spreadsheet cell, redesign before building further.
-Everything else in this project is secondary to that number.
+What `/deals` is genuinely missing is not a screen:
+
+- **Ordering.** `listDeals` sorts `created_at DESC` — right for searching, wrong
+  for working. A work queue is oldest-first: the lead that has waited three weeks
+  is the one costing money, and newest-first buries it on page 6 of 22. This is
+  the mechanism behind "leads wait weeks before anyone calls," named elsewhere as
+  their largest addressable loss
+- **Three missing buckets.** Awaiting verification (no filter on
+  `visit_verification_status`), nurture waking today (`nurture_wake_at` on or
+  before today, not merely stage `nurture`), and quotes past SLA — which had no
+  sent date on `deal_list_view` to compare against until `20260830120000` added
+  `latest_quote_sent_at`. All three are now pure filters over columns the view
+  already carries; none needs further schema
+- **Speed.** Logging a call must be one interaction. That belongs in
+  `components/deals/lead-drawer.tsx`, which already does a non-modal slide-over
+  with History-API URL state — exactly the "advance without a page load"
+  behaviour `/queue` was going to be built for
+
+So step 4 is: five presets, an oldest-first sort, and one-interaction logging in
+the drawer.
+
+**Done already.** `/queue` is a redirect, not a screen, matching what
+`/admin/leads` became — so old bookmarks keep working. It is off the nav,
+`revalidatePath("/queue")` is gone, and `homeFor("crm_manager")` now returns
+`TO_CALL_PRESET` from `lib/navigation.ts`, so she lands on never-contacted leads
+oldest-first instead of a placeholder. `listDeals` takes `?sort=oldest`
+(defaulting to newest-first, so `/deals`, `/my-deals` and Export are unchanged).
+
+**Also done.** Five preset chips on `/deals`, defined once in
+`lib/domain/presets.ts` and covered by `tests/presets.test.ts`. Applying one
+replaces the filter state rather than adding to it — these are views of the
+work, not extra conditions — and narrowing a preset by city keeps it selected.
+The three missing filters are in `listDeals`: `verification=pending`,
+`waking=1`, `quotesla=1`. Waking compares against **today in IST** via the
+existing `istParts`, because on a UTC server a 05:00 IST deal wakes a day late.
+The SLA window is the last value in `quote_followup_days`, read from settings so
+LUCA can change it without a deploy.
+
+**One interaction per lead.** In the slide-over, pressing a disposition's number
+logs it and moves to the next lead; RNR is seeded first, so RNR is always `1`.
+Clicking deliberately does not advance — see the decisions table.
+
+**Still to verify.** The number that governs the design: **RNR is 30% of ~440
+leads a month.** Log 20 with the `1` key and time it against a spreadsheet cell.
+Two presets — Awaiting verification and Quotes past SLA — correctly show nothing
+until steps 5 and 6 exist; their empty state says why rather than reading as a
+bug.
+
+### Steps 5 and 6
+
+**No migration.** Every table, policy, grant and bucket these needed already
+existed from step 1 — `appointments`, `visits`, `visit_verifications`, `quotes`,
+`attachments`, and both private storage buckets.
+
+**Step 5.** `/today` is two lists: visits booked for today and follow-ups past
+their date. An appointment is a commitment to someone else, an overdue next
+action one to yourself, and a rep owes both. The day window is computed in IST —
+a 23:00 IST appointment is 17:30 UTC, so a naive UTC day drops the late ones.
+Check-in is on `/today` itself, because a rep standing outside a building should
+not have to open the deal first; check-out needs notes, so it lives on the deal.
+
+Geolocation **never blocks**. A rep in a basement with no fix still has to be
+able to work, and refusing would only teach them to stop using the app — which
+costs more than an unlocated visit. A missing fix is recorded and shown, not
+prevented. It is a deterrent, not proof: the verification call is the real
+control.
+
+Photos are compressed in the browser to roughly 300 KB before upload. A current
+phone camera produces 3–5 MB frames and the bucket caps at 2 MB, so an untouched
+upload fails on the rep's own handset. Five per visit.
+
+Both buckets stay private and the tables store a **storage path, never a URL** —
+the anon key ships in the browser bundle, so a public bucket would let anyone
+holding it enumerate photographs of customers' homes. `/api/files` mints a
+five-minute signed URL, running as the signed-in user so the storage policies
+decide.
+
+**Step 6.** Checking out sets `visit_verification_status` to `pending`, which is
+what fills the Awaiting-verification queue and blocks a quote. A `failed` call
+freezes the deal — that rule was already in `lib/domain/stages.ts` and is not
+re-implemented anywhere. An admin resolution can only land on `confirmed` or
+`not_required`, never back on `failed`, and the note is mandatory: it is a
+judgement about a rep and should not be possible to make silently.
+
+The verification panel is in the slide-over as well as the deal page, so the
+Awaiting-verification preset can actually be rung down without a page load.
+Quotes stay on the full page — they involve a file, and it is not a
+many-times-a-day action.
+
+Quotes are versioned, never replaced. "What did we send them in March" is a
+question the spreadsheet could never answer.
+
+**Still to verify.** None of this has been run against the real data or on a
+phone. In particular: geolocation and the camera need HTTPS or localhost, so use
+`npm run dev:lan`; and the photo path only proves out on a real handset.
+
+### Step 9
+
+**Export was already done** in step 3 (`app/(app)/deals/export/route.ts`), so this
+was the dashboard and the health page.
+
+Every number is computed in `lib/domain/metrics.ts` — pure, no database, 25
+tests. Aggregating ~1,800 rows in JavaScript rather than SQL is deliberate: it
+keeps "what does win rate mean" in one readable file instead of split between a
+view and a component, and at this size the cost is unmeasurable. Revisit at ten
+thousand rows.
+
+Things decided while building it:
+
+- **The funnel shows six stages, not nine.** Lost, Not Pursued and Nurture are
+  parallel exits, not steps a deal passes through; drawing them as bars would
+  invent a funnel that narrows for reasons it does not narrow for. They are
+  counted separately underneath
+- **Win rate and cycle time say so when there is nothing to measure.** No deal
+  has closed in this system yet. The page states that in words rather than
+  showing a confident-looking `0%`, and repeats that the old tracker's 2 Won
+  across 1,762 rows is not a baseline
+- **Median, not mean,** for lead age and cycle time. A handful of leads called
+  after four months would drag an average somewhere no actual lead lives
+- **Campaigns need 10 leads to appear** in the rate comparison. Three leads and
+  one contact reads as 33%, which is noise presented as a finding
+- **A non-zero bar always renders.** Four deals out of a thousand is 0.4% — a
+  sub-pixel mark identical to zero, which is the one distinction the chart owes
+  the reader. Caught by screenshotting the real markup, not by any test
+- **One hue per chart, never a value-ramp.** Bar length already encodes size;
+  colouring darker-where-bigger spends the only free channel saying it twice.
+  The funnel is the exception and uses each stage's own badge colour, which is
+  identity the reader already knows — and every row is labelled, so nothing
+  rests on colour alone
+
+The health page needs one **`security definer`** function, `system_health()` —
+`pg_database_size()`, the storage total and the failed-job count are not
+readable by `authenticated`, and `notifications_log` is read-own under RLS so an
+admin cannot count anyone else's failures from the client. Security definer
+bypasses RLS by design, so the function checks `is_admin()` itself; that check is
+the only thing protecting it.
+
+Percentages are measured against **three new settings rows** —
+`database_limit_bytes`, `storage_limit_bytes`, `stalled_deal_days` — because the
+allowance is a property of the Supabase plan and changes the day LUCA move to
+Pro. A plan change should be a row edit, not a deploy.
+
+`20260830140000_health.sql` is applied, so both pages read live numbers.
+
+⚠ **The two allowances are seeded at the FREE tier** — 512 MB database, 1 GB
+storage. That is correct today and wrong the moment Supabase Pro is bought:
+the percentages would read roughly sixteen and a hundred times too high, which
+is exactly the kind of false alarm that teaches people to ignore a health page.
+Change both in Admin → Settings on the day the plan changes.
+
+### Step 7 — built, deliberately not run
+
+**No migration.** `rep_initials_map` was already seeded (empty).
+
+What it is for, corrected after talking to Vishal: the tracker is **their live
+working file across all sources**, not an archive. So the matched path is not
+history — it is the **current state of ~1,031 deals**. All 1,073 Meta deals sit
+in `qualifying` because that is where Importer A left them, not because that is
+where they are. This is what turns the dashboard funnel from one bar into a
+pipeline.
+
+Three things it does: gives existing deals their real stage (81 rows have a site
+visit done, 60 a quotation shared), adds the ~700 leads Meta never saw, and adds
+the call history (88% of Remarks carry date patterns).
+
+Decisions:
+
+- **`plan()` and `commit()` share one code path.** A preview that runs different
+  logic from the commit is a preview of nothing, and this writes append-only
+  rows that cannot be undone
+- **Stage only ever moves forward**, and never over a person: a deal already
+  closed in the CRM is not reopened, and Nurture — someone saying "call me in
+  eight months" — is never woken by a stale sheet (`shouldAdvance`)
+- **A terminal tracker status beats a milestone flag.** A dropped deal that was
+  quoted is still dropped; showing it as Quote Sent would put a dead deal in the
+  live pipeline
+- **Unrecognised statuses become Qualifying with the text kept.** ~37 of 137 are
+  free-text sentences; inventing a stage from prose would put fiction in the funnel
+- **`external_id` is namespaced `tracker:<phone>`** — `deals_external_id_key` is
+  a global unique index shared with Importer A, and this also makes a re-run safe
+- **Dates are day-first and take an explicit year.** 1,537 rows are like "2 May";
+  defaulting to the current year would silently mis-date everything if re-run in
+  January, and reading `05/01` as 5 January would be wrong on every ambiguous row
+- **Source is `Legacy Tracker`, not a guess.** The tracker has no source column.
+  Tagging ~700 rows "Website" would put fabricated attribution into the exact
+  chart Vishal uses to judge ad spend
+- **Nothing is dropped.** No phone → placeholder, flagged. Unreadable date →
+  imported with none. Junk in Floors, Status Remarks, the RP string and the six
+  unnamed trailing columns → all swept into the imported note
+
+**Before running it:** fill `rep_initials_map` in Admin → Settings. 127 rows
+carry initials and it is the only historical rep data in the entire dataset;
+unmapped ones import with nobody attached. The preview names any it cannot
+resolve.
+
+**How to run.** Preview in Admin → Import, or `npm run import:tracker -- <file>`
+for a dry run; add `--commit` to write. The UI needs the word IMPORT typed.
 
 ---
 
@@ -68,6 +258,10 @@ using the thing:
 | Change | Why |
 |---|---|
 | **`/admin/leads` deleted**, merged into `/deals` as a Select mode | Two near-identical screens, and Leads shipped with no filter controls at all. Redirects now |
+| **`warning` and `danger` are nearly the same colour** | Measured, not guessed: `#B45309` and `#B42318` are ΔE 8.6 apart in normal vision and 5.4 under deutan — below the threshold where anyone can tell two marks apart by hue. Every status on the Health page therefore carries a word and a symbol as well as a colour. Worth fixing in `globals.css` one day; the badges have the same problem |
+| **Geolocation never blocks a check-in** | Spoofable anyway, so it was never proof. A basement with no fix must not stop a rep working; refusing teaches them to skip the app, which costs more than an unlocated visit. Recorded and shown when missing |
+| **A click logs and stays; a number key logs and advances** | The spec said "a single tap or keystroke". Making both advance is wrong: `Connected - Interested` and `Call back later` need a next action on *this* lead. The keyboard is the bulk path (`1 1 1` down the RNRs), the mouse the considered one. Avoids hard-coding which dispositions are "done" in a `.tsx`, which would have been a code change LUCA cannot make |
+| **`/queue` dropped; the work queue is presets on `/deals`** | The same mistake as `/admin/leads`, one step later. Two of the five buckets are already filters; what was actually missing is oldest-first ordering, three more filters, and one-interaction logging in the slide-over that already exists |
 | **Sign in with mobile number or email**; mobile mandatory and unique | Reps work from phones and know their number better than an assigned email. Not Supabase phone auth — that needs a paid SMS provider |
 | **Leads open in a slide-over**, not a separate page | Reviewing a queue without losing filters or scroll. Non-modal; the list stays interactive. `?lead=<id>`, written with the History API so stepping through leads does not re-run the page's queries |
 | **Campaign moved behind More filters** | Date-stamped ad names that grow with every ad; two already cover 78% of leads. Per-campaign analysis belongs on the dashboard |
@@ -75,6 +269,7 @@ using the thing:
 | **Phone and Source added as columns** | Phone was buried under the name; source was invisible |
 | **"Not called yet"** shown instead of Qualifying before the first call | Every deal reads Qualifying, which tells nobody anything. Derived in `stage-badge.tsx` — deliberately **not** a database stage, since that would add a funnel step no transition leads out of |
 | **City filter offers 58 real towns + "Other"** | The Meta form takes free text: 231 raw values, 165 appearing once, including pincodes and `chennaiytttt` |
+| **The ~700 tracker-only deals are tagged `Legacy Tracker`, not a guessed channel** | The tracker has no source column. Meta is primary and the website is the other confirmed source, but which of the 700 came from where is unknown — and a guess would land in the campaign report Vishal uses to judge ad spend |
 | **Importer B: Meta is the sole source of deals** | 974 of 1,063 Meta phones also appear in the tracker. The spec's original rule would have created ~974 phantom deals |
 | **Scheduling via Supabase `pg_cron` + `pg_net`** | Hostinger has no scheduler, and this survives a host move. All timing in `Asia/Kolkata` |
 | **`job_config` table for the app URL and cron secret** | The database has to call the app, so it needs both — and neither can go in a migration or in `app_settings`, which every authenticated user can read |
@@ -96,8 +291,15 @@ using the thing:
   All nine templates are `is_approved = false` — Meta reviews each body
   individually, and until that happens the in-app centre is the only channel,
   which is **pull, not push**: it reaches nobody who does not open the app
-- **The cron schedule is not live.** `npm run db:push` then `npm run cron:setup`
-  turns it on; `cron:setup` needs `APP_URL` in `.env.local`
+- **The notification schedule is not live.** `npm run db:push` then
+  `npm run cron:setup`, which needs `APP_URL` in `.env.local`. Until then
+  nothing timed fires; the event-driven notifications work as soon as the
+  migration is applied
+- **Schema is current through `20260830140000_health.sql`** — `20260830120000`
+  added `latest_quote_sent_at` to `deal_list_view`; `20260830140000` added the
+  `system_health()` function and three settings rows. **`20260831120000_notifications.sql`
+  is written but NOT applied** — it adds `dedupe_key`, `job_config` and the
+  `pg_cron` schedule
 
 ### Things that cost hours to discover
 

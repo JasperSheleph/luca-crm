@@ -34,6 +34,11 @@ export default async function Page({
           role: user.role,
           requiredFieldsForAppointment: (setting?.value as string[]) ?? [],
           lists,
+          // A rep never makes verification calls — that is the point of the
+          // control. The panel still renders, read-only, so they can see why
+          // a deal of theirs is frozen.
+          canVerify: false,
+          canResolveVerification: false,
         }}
       />
     </>

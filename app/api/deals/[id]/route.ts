@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDeal, getTimeline } from "@/lib/queries/deals";
+import { getVerifications } from "@/lib/queries/visits";
 import { getCurrentUser } from "@/lib/queries/users";
 import { canViewDeal } from "@/lib/domain/permissions";
 
@@ -26,10 +27,10 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const timeline = await getTimeline(id);
+  const [timeline, verifications] = await Promise.all([getTimeline(id), getVerifications(id)]);
 
   return NextResponse.json(
-    { deal, timeline },
+    { deal, timeline, verifications },
     // Private to this user and short-lived: the timeline changes the moment
     // they log a call, and arrow-keying back should not show a stale one.
     { headers: { "Cache-Control": "private, no-store" } },

@@ -19,6 +19,7 @@
     "cron:setup": "tsx scripts/setup-cron.ts",
     "db:status": "set -a && . ./.env.local && set +a && supabase migration list --db-url \"$SUPABASE_DB_URL\"",
     "import:meta": "tsx scripts/import-meta.ts",
+    "import:tracker": "tsx scripts/import-tracker.ts",
     "cities:renormalize": "tsx scripts/renormalize-cities.ts",
     "dev:lan": "node -e \"const o=require('os').networkInterfaces();const ip=Object.values(o).flat().find(n=>n&&n.family==='IPv4'&&!n.internal);console.log('\\n  Phone on the same Wi-Fi:  http://'+(ip?ip.address:'?')+':3000\\n  If that address is new, add it to allowedDevOrigins in next.config.ts.\\n')\" && next dev"
   },

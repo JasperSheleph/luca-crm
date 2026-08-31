@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/db/server";
 import type { DealStage } from "@/lib/domain/stages";
-import type { Activity } from "@/lib/types";
+import type { Activity, VerificationStatus } from "@/lib/types";
 import { CITY_OTHER } from "@/lib/domain/city";
+// The one IST wall-clock helper in the codebase. Reused rather than
+// reimplemented: a second date path is how "waking today" drifts a day.
+import { istParts } from "@/lib/domain/notifications";
 
 export interface DealListRow {
   id: string;
@@ -18,7 +21,7 @@ export interface DealListRow {
   campaign_name: string | null;
   budget_amount: number | null;
   budget_band: string | null;
-  visit_verification_status: string;
+  visit_verification_status: VerificationStatus;
   crm_owner_id: string | null;
   rep_owner_id: string | null;
   source_id: number | null;
@@ -30,6 +33,7 @@ export interface DealListRow {
   rep_owner_name: string | null;
   last_activity_at: string | null;
   activity_count: number;
+  latest_quote_sent_at: string | null;
 }
 
 export interface DealFilters {
@@ -44,6 +48,14 @@ export interface DealFilters {
   to?: string;
   overdue?: boolean;
   uncontacted?: boolean;
+  /** A completed site visit the customer has not confirmed. */
+  awaitingVerification?: boolean;
+  /** Parked in Nurture, wake date today or earlier — read in IST, not UTC. */
+  wakingToday?: boolean;
+  /** Quote sent, follow-up window exhausted, still no answer. */
+  quotePastSla?: boolean;
+  /** Work presets read oldest-first; the browsable list stays newest-first. */
+  sort?: "oldest" | "newest";
   page?: number;
   perPage?: number;
 }
@@ -80,10 +92,30 @@ export function parseDealFilters(
     to: text("to"),
     overdue: get("overdue") === "1",
     uncontacted: get("uncontacted") === "1",
+    awaitingVerification: get("verification") === "pending",
+    wakingToday: get("waking") === "1",
+    quotePastSla: get("quotesla") === "1",
+    // What turns a filtered view into a work queue. Newest-first is right
+    // for searching and wrong for working: the lead that has waited three
+    // weeks is the one costing money, and newest-first buries it.
+    sort: get("sort") === "oldest" ? "oldest" : "newest",
   };
 }
 
 export const DEALS_PER_PAGE = 50;
+
+/**
+ * The last nudge in `quote_followup_days` is the SLA: once that day has passed
+ * the automated follow-ups are spent and it needs a person. A settings row, so
+ * LUCA can change the window without a deploy.
+ */
+async function getQuoteSlaDays(): Promise<number> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("app_settings").select("value").eq("key", "quote_followup_days").maybeSingle();
+  const days = (data?.value as number[] | null) ?? [];
+  return days.length ? Math.max(...days) : 14;
+}
 
 async function getServiceAreaCities(): Promise<string[]> {
   const supabase = await createClient();
@@ -149,8 +181,29 @@ export async function listDeals(f: DealFilters = {}): Promise<{ rows: DealListRo
          .not("stage", "in", "(won,lost,not_pursued)");
   }
 
+  // A visit the rep marked done that the customer has not confirmed. Only
+  // `pending` — `unreachable` and `failed` are their own problems, and `failed`
+  // freezes the deal until an admin resolves it (lib/domain/stages.ts).
+  if (f.awaitingVerification) q = q.eq("visit_verification_status", "pending");
+
+  // Nurture deals due back. The comparison is against today in IST: the server
+  // may well be on UTC, and at 05:00 IST a UTC "today" is still yesterday, so a
+  // deal would wake a day late.
+  if (f.wakingToday) {
+    const endOfDayIst = `${istParts(new Date()).ymd}T23:59:59+05:30`;
+    q = q.not("nurture_wake_at", "is", null).lte("nurture_wake_at", endOfDayIst);
+  }
+
+  // Quote sent, nobody replied, and the follow-up window has run out.
+  if (f.quotePastSla) {
+    const cutoff = new Date(Date.now() - (await getQuoteSlaDays()) * 86_400_000).toISOString();
+    q = q.not("latest_quote_sent_at", "is", null)
+         .lt("latest_quote_sent_at", cutoff)
+         .not("stage", "in", "(won,lost,not_pursued)");
+  }
+
   const { data, count } = await q
-    .order("created_at", { ascending: false })
+    .order("created_at", { ascending: f.sort === "oldest" })
     .range((page - 1) * perPage, page * perPage - 1);
 
   return { rows: (data ?? []) as DealListRow[], total: count ?? 0 };
