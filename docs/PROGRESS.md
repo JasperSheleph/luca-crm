@@ -19,7 +19,7 @@ has not caught up.
 | 4 | Work queue, as presets on `/deals` — not a `/queue` screen | **Built, not yet timed** |
 | 5 | Rep view, appointments, visits with geolocation, photos | **Built, not yet on a phone** |
 | 6 | Verification gate, quotes | **Built, not yet walked through** |
-| 7 | Importer B (legacy tracker) | Pending |
+| 7 | Importer B (legacy tracker) | **Built — NOT yet run** |
 | 8 | Notification engine, in-app centre, `pg_cron` | Pending |
 | 9 | Dashboard, export, health page | **Built, not yet read on real data** |
 | 10 | `SCHEMA.md`, `DEPLOYMENT.md`, `MAKING-CHANGES.md`, `ADMIN-GUIDE.md` | Pending |
@@ -200,6 +200,54 @@ the percentages would read roughly sixteen and a hundred times too high, which
 is exactly the kind of false alarm that teaches people to ignore a health page.
 Change both in Admin → Settings on the day the plan changes.
 
+### Step 7 — built, deliberately not run
+
+**No migration.** `rep_initials_map` was already seeded (empty).
+
+What it is for, corrected after talking to Vishal: the tracker is **their live
+working file across all sources**, not an archive. So the matched path is not
+history — it is the **current state of ~1,031 deals**. All 1,073 Meta deals sit
+in `qualifying` because that is where Importer A left them, not because that is
+where they are. This is what turns the dashboard funnel from one bar into a
+pipeline.
+
+Three things it does: gives existing deals their real stage (81 rows have a site
+visit done, 60 a quotation shared), adds the ~700 leads Meta never saw, and adds
+the call history (88% of Remarks carry date patterns).
+
+Decisions:
+
+- **`plan()` and `commit()` share one code path.** A preview that runs different
+  logic from the commit is a preview of nothing, and this writes append-only
+  rows that cannot be undone
+- **Stage only ever moves forward**, and never over a person: a deal already
+  closed in the CRM is not reopened, and Nurture — someone saying "call me in
+  eight months" — is never woken by a stale sheet (`shouldAdvance`)
+- **A terminal tracker status beats a milestone flag.** A dropped deal that was
+  quoted is still dropped; showing it as Quote Sent would put a dead deal in the
+  live pipeline
+- **Unrecognised statuses become Qualifying with the text kept.** ~37 of 137 are
+  free-text sentences; inventing a stage from prose would put fiction in the funnel
+- **`external_id` is namespaced `tracker:<phone>`** — `deals_external_id_key` is
+  a global unique index shared with Importer A, and this also makes a re-run safe
+- **Dates are day-first and take an explicit year.** 1,537 rows are like "2 May";
+  defaulting to the current year would silently mis-date everything if re-run in
+  January, and reading `05/01` as 5 January would be wrong on every ambiguous row
+- **Source is `Legacy Tracker`, not a guess.** The tracker has no source column.
+  Tagging ~700 rows "Website" would put fabricated attribution into the exact
+  chart Vishal uses to judge ad spend
+- **Nothing is dropped.** No phone → placeholder, flagged. Unreadable date →
+  imported with none. Junk in Floors, Status Remarks, the RP string and the six
+  unnamed trailing columns → all swept into the imported note
+
+**Before running it:** fill `rep_initials_map` in Admin → Settings. 127 rows
+carry initials and it is the only historical rep data in the entire dataset;
+unmapped ones import with nobody attached. The preview names any it cannot
+resolve.
+
+**How to run.** Preview in Admin → Import, or `npm run import:tracker -- <file>`
+for a dry run; add `--commit` to write. The UI needs the word IMPORT typed.
+
 ---
 
 ## Decisions that supersede the spec
@@ -221,6 +269,7 @@ using the thing:
 | **Phone and Source added as columns** | Phone was buried under the name; source was invisible |
 | **"Not called yet"** shown instead of Qualifying before the first call | Every deal reads Qualifying, which tells nobody anything. Derived in `stage-badge.tsx` — deliberately **not** a database stage, since that would add a funnel step no transition leads out of |
 | **City filter offers 58 real towns + "Other"** | The Meta form takes free text: 231 raw values, 165 appearing once, including pincodes and `chennaiytttt` |
+| **The ~700 tracker-only deals are tagged `Legacy Tracker`, not a guessed channel** | The tracker has no source column. Meta is primary and the website is the other confirmed source, but which of the 700 came from where is unknown — and a guess would land in the campaign report Vishal uses to judge ad spend |
 | **Importer B: Meta is the sole source of deals** | 974 of 1,063 Meta phones also appear in the tracker. The spec's original rule would have created ~974 phantom deals |
 | **Scheduling via Supabase `pg_cron` + `pg_net`** | Hostinger has no scheduler, and this survives a host move. All timing in `Asia/Kolkata` |
 
