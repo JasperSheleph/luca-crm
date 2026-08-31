@@ -86,5 +86,24 @@ export function activePreset(get: (key: string) => string | undefined | null): W
   );
 }
 
+/**
+ * A preset by key, so a link cannot silently repoint if the list is reordered.
+ * Throws at module load rather than returning undefined: a broken key should
+ * fail the build, not send someone to a blank page six months from now.
+ */
+function preset(key: string): WorkPreset {
+  const found = WORK_PRESETS.find((p) => p.key === key);
+  if (!found) throw new Error(`Unknown work preset: ${key}`);
+  return found;
+}
+
 /** Where the CRM Manager lands at sign-in: the first bucket, oldest first. */
 export const TO_CALL = WORK_PRESETS[0];
+
+/**
+ * The two buckets notifications link into. A digest saying "11 deals are
+ * overdue" has to land on the eleven deals, sorted the way they are worked —
+ * which is what a preset is, and why these are not hand-written query strings.
+ */
+export const OVERDUE = preset("overdue");
+export const AWAITING_VERIFICATION = preset("awaiting-verification");

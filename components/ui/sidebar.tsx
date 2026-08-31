@@ -11,7 +11,13 @@ const ROLE_LABEL: Record<AppUser["role"], string> = {
   sales_rep: "Sales Rep",
 };
 
-export default function Sidebar({ items, user }: { items: NavItem[]; user: AppUser }) {
+export default function Sidebar({
+  items, user, unreadCount = 0,
+}: {
+  items: NavItem[];
+  user: AppUser;
+  unreadCount?: number;
+}) {
   return (
     <aside className="hidden w-56 shrink-0 flex-col bg-navy-900 md:flex">
       <div className="px-4 py-5">
@@ -26,7 +32,12 @@ export default function Sidebar({ items, user }: { items: NavItem[]; user: AppUs
 
       <nav className="flex-1 space-y-0.5 px-2">
         {items.map((item) => (
-          <NavLink key={item.href} href={item.href} label={item.label} />
+          <NavLink
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            badge={item.href === "/notifications" ? unreadCount : 0}
+          />
         ))}
       </nav>
 

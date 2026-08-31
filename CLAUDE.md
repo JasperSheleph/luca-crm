@@ -12,10 +12,18 @@ not caught up yet.
 
 ## Where we are
 
-**Steps 1–3 of the ten-step build order are done. Step 4 is next.**
+**Steps 1–9 are built. Nothing is proven.** Step 10 is documentation, and the
+gap that matters now is not code — it is that almost none of this has been
+exercised against the real database by a real person.
 
 1,073 real Meta leads are live in Supabase. Sign in as `9000000001` (or
 `admin@luca.test`) with `LucaDemo2026!` — the mobile number works as a login.
+
+Before anything else is built, in this order: **time 20 RNRs** (step 4's gate,
+below), **open the rep view on an actual phone** (step 5), **walk one deal
+through visit → verification → quote** (step 6), and **turn the notification
+schedule on** (below). Each of those is a thing that can only fail in reality,
+and each is cheaper to find now than after handover.
 
 Step 4 is the CRM Manager's work queue, and it is **not a new screen.** It
 extends `/deals` with saved presets and an oldest-first sort instead of building
@@ -26,6 +34,11 @@ filters. The reasoning is in [`docs/PROGRESS.md`](docs/PROGRESS.md).
 What still has to be true: **logging a call is one interaction.** RNR is 30% of
 ~440 leads a month, and it happens in the lead slide-over without a page load.
 Worth timing once against a spreadsheet cell before building further.
+
+Notifications are built but the schedule is **not live**, and three migrations
+are **written but not applied**. `npm run db:push` then `npm run cron:setup`.
+Until both are run, nothing timed fires and Admin → Health says so in as many
+words. See [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md).
 
 ---
 
@@ -93,13 +106,15 @@ app/            Routes. Rendering only — thin.
 components/     Presentational. No DB calls, no business rules.
 lib/domain/     Business rules. Pure, no DB, no React, fully tested.
 lib/queries/    Every database read.   lib/actions/  Every database write.
+lib/notifications/  The engine. notify() is the only way anyone is told anything.
 lib/db/         Supabase clients. admin.ts bypasses RLS — read its warning.
 supabase/       Migrations and seed data.
 ```
 
 Every stage transition goes through `lib/domain/stages.ts`. Every permission
-check goes through `lib/domain/permissions.ts`. There is no second path to
-either, and adding one is how this becomes unmaintainable.
+check goes through `lib/domain/permissions.ts`. Every notification goes through
+`notify()` in `lib/notifications/dispatch.ts`. There is no second path to any of
+them, and adding one is how this becomes unmaintainable.
 
 ## Working with real customer data
 

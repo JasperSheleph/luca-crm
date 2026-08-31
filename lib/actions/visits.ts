@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
 import { getCurrentUser } from "@/lib/queries/users";
+import { fireNotification, dealNotificationVars } from "@/lib/notifications/from-action";
+import { presetHref, AWAITING_VERIFICATION } from "@/lib/domain/presets";
 import { can, canViewDeal } from "@/lib/domain/permissions";
 import { canTransition, type DealStage } from "@/lib/domain/stages";
 import type { AppUser } from "@/lib/types";
@@ -137,8 +139,22 @@ export async function completeVisit(_prev: VisitState, formData: FormData): Prom
   // Never downgrade a verification already settled: re-visiting a confirmed
   // deal must not silently reopen the gate behind it.
   const current = deal.visit_verification_status as string;
-  if (current === "not_required" || current === "unreachable") {
+  const nowAwaiting = current === "not_required" || current === "unreachable";
+  if (nowAwaiting) {
     await supabase.from("deals").update({ visit_verification_status: "pending" }).eq("id", dealId);
+  }
+
+  // Told only when the deal actually enters the Awaiting-verification bucket.
+  // A second visit on a deal already sitting there is not news — it is already
+  // in her queue, and telling her twice is how the queue stops being read.
+  if (nowAwaiting) {
+    const vars = await dealNotificationVars(supabase, deal);
+    await fireNotification({
+      triggerKey: "visit_awaiting_verification",
+      vars: { ...vars, rep_name: user.name },
+      dealId,
+      href: presetHref(AWAITING_VERIFICATION),
+    });
   }
 
   const stage = deal.stage as DealStage;

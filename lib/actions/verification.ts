@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
 import { getCurrentUser } from "@/lib/queries/users";
+import { fireNotification, dealNotificationVars } from "@/lib/notifications/from-action";
 import { can, canViewDeal } from "@/lib/domain/permissions";
 import type { AppUser, VerificationStatus } from "@/lib/types";
 
@@ -90,6 +91,19 @@ export async function recordVerification(
     notes: notes || null,
     metadata: { outcome, visit_id: visit?.id ?? null },
   });
+
+  // A customer saying no visit took place is the one thing in this system the
+  // owners must hear about without being asked. Only an admin can resolve it,
+  // so only an admin is told — that is the rule's recipient, not a choice made
+  // here.
+  if (outcome === "failed") {
+    await fireNotification({
+      triggerKey: "verification_failed",
+      vars: await dealNotificationVars(supabase, deal),
+      dealId,
+      href: `/deals/${dealId}`,
+    });
+  }
 
   refresh(dealId);
   return {

@@ -20,7 +20,7 @@ has not caught up.
 | 5 | Rep view, appointments, visits with geolocation, photos | **Built, not yet on a phone** |
 | 6 | Verification gate, quotes | **Built, not yet walked through** |
 | 7 | Importer B (legacy tracker) | **Built — NOT yet run** |
-| 8 | Notification engine, in-app centre, `pg_cron` | Pending |
+| 8 | Notification engine, in-app centre, `pg_cron` | **Built — schedule NOT yet live** |
 | 9 | Dashboard, export, health page | **Built, not yet read on real data** |
 | 10 | `SCHEMA.md`, `DEPLOYMENT.md`, `MAKING-CHANGES.md`, `ADMIN-GUIDE.md` | Pending |
 
@@ -250,6 +250,44 @@ for a dry run; add `--commit` to write. The UI needs the word IMPORT typed.
 
 ---
 
+### Step 8 — built last, wired into everything before it
+
+Nine rules and a tested pure module for deciding when each is due already
+existed, and nothing called any of it. `notify()` in
+`lib/notifications/dispatch.ts` is now the only path: it renders the approved
+template, resolves recipients from the rule row, writes `notifications_log`,
+and sends via WhatsApp only if that is on. It never throws — a message that
+fails must not roll back the assignment that caused it.
+
+Verified against a throwaway Postgres 16, because a half-applied migration
+against the one shared database is this project's worst outcome:
+
+- **All fourteen migrations apply in order**, including on a database with no
+  `pg_cron` or `pg_net` — those raise a notice instead of failing, and
+  `system_health()` degrades to "schedule unknown" rather than erroring.
+- **Idempotency holds.** A repeated `dedupe_key` inserts nothing and returns no
+  rows; event-driven rows, which carry no key, never collide. That is what
+  makes a 15-minute cron safe against `isRuleDue()`'s 10-minute jitter window.
+- **The secret is sealed.** `anon` and `authenticated` can read neither
+  `job_config` nor execute the function that uses it.
+- **`authenticated` cannot INSERT into `notifications_log`** — only read, and
+  update `read_at`. Nobody can forge a notification to somebody else.
+
+**Not verified against the live database.** `db:push` and `cron:setup` have not
+been run, so nothing timed has ever fired.
+
+Built after steps 4–7 landed, so the two triggers that had no call site —
+`visit_awaiting_verification` and `verification_failed` — are wired into
+`completeVisit` and `recordVerification` rather than left for later.
+
+One gap closed that predates all of this: `verification_escalation_hours` has
+been an editable setting since the first seed, and its help text has always
+said "how long an unreachable verification waits before both admins are told".
+Nothing told them — there was no rule, no template and no job. There is now
+(`20260831130000`). The hours stay in `app_settings` rather than moving to the
+rule's `threshold_value`, because two controls for one number is how a system
+starts lying about what it will do.
+
 ## Decisions that supersede the spec
 
 The spec is being corrected as we go, but these are the changes that came from
@@ -272,6 +310,10 @@ using the thing:
 | **The ~700 tracker-only deals are tagged `Legacy Tracker`, not a guessed channel** | The tracker has no source column. Meta is primary and the website is the other confirmed source, but which of the 700 came from where is unknown — and a guess would land in the campaign report Vishal uses to judge ad spend |
 | **Importer B: Meta is the sole source of deals** | 974 of 1,063 Meta phones also appear in the tracker. The spec's original rule would have created ~974 phantom deals |
 | **Scheduling via Supabase `pg_cron` + `pg_net`** | Hostinger has no scheduler, and this survives a host move. All timing in `Asia/Kolkata` |
+| **`job_config` table for the app URL and cron secret** | The database has to call the app, so it needs both — and neither can go in a migration or in `app_settings`, which every authenticated user can read |
+| **Bulk assign sends no notifications** | Two hundred leads would be two hundred messages to one person. A muted notification system is a decorative one |
+| **Notification links point at work presets, never at `/queue`** | `/queue` is a redirect since step 4. A digest saying "11 overdue" has to land on the eleven deals, sorted the way they are worked |
+| **Escalation hours stay in `app_settings`, not on the rule** | The setting predates the rule and is already documented under Settings → How it works. Two controls for one number disagree eventually |
 
 ---
 
@@ -285,10 +327,20 @@ using the thing:
   `salesrep@luca.test` / `9000000003`.
   Real accounts get created from Admin → Users after the demo. **Nothing is ever
   emailed** — `.test` cannot receive mail and accounts are created confirmed
-- **WhatsApp is off** (`app_settings.whatsapp_enabled`) and stays off for MVP
-- **Schema is current through `20260830140000_health.sql`** — `20260830120000`
-  added `latest_quote_sent_at` to `deal_list_view`; `20260830140000` added the
-  `system_health()` function and three settings rows
+- **WhatsApp is off** (`app_settings.whatsapp_enabled`) and stays off for MVP.
+  All ten templates are `is_approved = false` — Meta reviews each body
+  individually, and until that happens the in-app centre is the only channel,
+  which is **pull, not push**: it reaches nobody who does not open the app
+- **The notification schedule is not live.** `npm run db:push` then
+  `npm run cron:setup`, which needs `APP_URL` in `.env.local`. Until then
+  nothing timed fires; the event-driven notifications work as soon as the
+  migration is applied
+- **The database is current through `20260830140000_health.sql`. Three
+  migrations are written and NOT applied:** `20260831120000_notifications`
+  (`dedupe_key`, `job_config`, the `pg_cron` schedule),
+  `20260831130000_verification_escalation` (the tenth rule) and
+  `20260831140000_health_notifications` (schedule status on the Health page).
+  One `npm run db:push` applies all three
 
 ### Things that cost hours to discover
 

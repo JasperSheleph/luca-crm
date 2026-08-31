@@ -5,6 +5,7 @@
  * is where the service-role key actually lives, and that is where it stays.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notify } from "@/lib/notifications/dispatch";
 import { pickCrmOwner, type AssignmentMode } from "@/lib/domain/assignment";
 import { normalizePhone, phoneKey, isValidIndianMobile } from "@/lib/domain/phone";
 import { normalizeCity, isOutstation } from "@/lib/domain/city";
@@ -192,6 +193,23 @@ export async function ingestLead(
     await db.from("assignments").insert({
       deal_id: deal.id, user_id: prepared.crmOwnerId,
       role_at_assignment: "crm_manager", assigned_by: null,
+    });
+
+    // A lead arriving from the website at 11pm is exactly the case the whole
+    // notification engine exists for. Uses the caller's client, which is the
+    // service-role one on every path that reaches here — importing
+    // lib/db/admin would drag `server-only` into this module and break the
+    // scripts that share it. See the note at the top of this file.
+    await notify(db, {
+      triggerKey: "lead_assigned",
+      vars: {
+        customer_name: payload.name ?? "Unnamed lead",
+        city: payload.city ?? null,
+        source: payload.source,
+      },
+      dealId: deal.id,
+      dealOwnerIds: [prepared.crmOwnerId],
+      href: `/deals/${deal.id}`,
     });
   }
 

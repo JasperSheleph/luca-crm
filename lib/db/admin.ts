@@ -4,10 +4,13 @@ import { createClient } from "@supabase/supabase-js";
 /**
  * Service-role client. BYPASSES RLS ENTIRELY.
  *
- * Only three things legitimately need it:
+ * Only four things legitimately need it:
  *   - POST /api/leads/inbound  (no signed-in user)
  *   - the CSV importers        (write on behalf of an admin, at volume)
  *   - the pg_cron job route    (no signed-in user)
+ *   - the notification engine  (notifications_log grants INSERT to nobody
+ *                               else: a user must not be able to forge a
+ *                               notification to another user)
  *
  * Never import this into a component or a user-facing action. `server-only`
  * makes a client-side import a build error rather than a data breach.

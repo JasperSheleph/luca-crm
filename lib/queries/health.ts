@@ -103,8 +103,14 @@ export async function getHealth(): Promise<Check[]> {
   });
 
   // ---- storage and database
-  const size = sizeRes.data as
-    { database_bytes: number; storage_bytes: number; failed_jobs_24h: number } | null;
+  const size = sizeRes.data as {
+    database_bytes: number;
+    storage_bytes: number;
+    failed_jobs_24h: number;
+    notifications_24h: number;
+    cron_configured: boolean;
+    cron_last_run: string | null;
+  } | null;
   if (sizeRes.error || !size) {
     checks.push({
       key: "sizes",
@@ -114,15 +120,54 @@ export async function getHealth(): Promise<Check[]> {
       detail: "Only an admin can see these, and the database has to be reachable.",
     });
   } else {
-    // Scheduled jobs only start firing in step 8; until then this is
-    // truthfully zero rather than misleadingly reassuring.
+    // ---- is the schedule alive?
+    // Asked before the failure count, because zero failures is meaningless
+    // when nothing ran at all — and "nothing ran" is the likelier fault.
+    const lastRun = size.cron_last_run;
+    const staleHours = lastRun
+      ? (now.getTime() - new Date(lastRun).getTime()) / 3_600_000
+      : null;
+
+    checks.push({
+      key: "schedule",
+      label: "Reminder schedule",
+      value: !size.cron_configured
+        ? "Not set up"
+        : lastRun === null
+          ? "Never run"
+          : `Last ran ${ago(lastRun, now)}`,
+      state: !size.cron_configured || lastRun === null
+        ? "serious"
+        // It runs every 15 minutes. An hour of silence is a real fault.
+        : staleHours !== null && staleHours > 1
+          ? "serious"
+          : "good",
+      detail: !size.cron_configured
+        ? "Nothing timed will ever send. Whoever set this up needs to run `npm run cron:setup` once."
+        : lastRun === null
+          ? "The schedule has never fired. Either pg_cron is not enabled on the database, or it cannot reach this site."
+          : staleHours !== null && staleHours > 1
+            ? "It should run every 15 minutes. Nothing timed is being sent right now."
+            : undefined,
+    });
+
+    checks.push({
+      key: "notifications_sent",
+      label: "Notifications sent, last 24 hours",
+      value: String(size.notifications_24h),
+      state: "neutral",
+      detail: size.notifications_24h === 0
+        ? "Quiet. Normal on a slow day, but not if the row above says something is wrong."
+        : undefined,
+    });
+
     checks.push({
       key: "failed_jobs",
-      label: "Failed jobs, last 24 hours",
+      label: "Failed sends, last 24 hours",
       value: String(size.failed_jobs_24h),
       state: size.failed_jobs_24h > 0 ? "warning" : "good",
       detail: size.failed_jobs_24h > 0
-        ? "Something scheduled did not send. Worth telling whoever maintains this."
+        ? "A WhatsApp message did not go out. Everything still appears in the notification centre, so nothing is lost — but the token or the template may need checking."
         : undefined,
     });
 
