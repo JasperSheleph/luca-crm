@@ -22,6 +22,9 @@ export const NAV: NavItem[] = [
   { href: "/queue",            label: "Queue",     roles: ["admin", "crm_manager"],      mobile: true },
   { href: "/deals",            label: "Deals",     roles: ["admin", "crm_manager"],      mobile: true },
 
+  // Everyone gets these, whatever their role.
+  { href: "/notifications",    label: "Alerts",    roles: ["admin", "crm_manager", "sales_rep"], mobile: true },
+
   { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                     mobile: true },
   { href: "/admin/users",      label: "Users",     roles: ["admin"] },
   { href: "/admin/settings",   label: "Settings",  roles: ["admin"] },

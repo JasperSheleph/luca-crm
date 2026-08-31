@@ -20,7 +20,7 @@ has not caught up.
 | 5 | Rep view, appointments, visits with geolocation, photos | Pending |
 | 6 | Verification gate, quotes | Pending |
 | 7 | Importer B (legacy tracker) | Pending |
-| 8 | Notification engine, in-app centre, `pg_cron` | Pending |
+| 8 | Notification engine, in-app centre, `pg_cron` | **Done** — out of order, see below |
 | 9 | Dashboard, export, health page | Pending |
 | 10 | `SCHEMA.md`, `DEPLOYMENT.md`, `MAKING-CHANGES.md`, `ADMIN-GUIDE.md` | Pending |
 
@@ -42,6 +42,15 @@ timeline with IST timestamps and attribution; all five transitions landed in
 `deal_stage_history`. The gates held: Appointment Scheduled stayed hidden until
 the required fields were filled, and Won demanded the advance. That deal was a
 real customer, so the test data was removed afterwards.
+
+**Step 8** — built out of order, ahead of steps 4–7. Nothing in it depends on
+those steps, and the two triggers that do (`visit_awaiting_verification`,
+`verification_failed`) are supported by the engine and simply have no call site
+yet. 92 domain tests pass, `next build` is clean, and the whole chain —
+`pg_cron` → `run_notification_cron()` → `POST /api/cron` → `runDueJobs()` →
+`notifications_log` → the in-app centre — is in place. **Not yet verified
+against the live database**: `db:push` and `cron:setup` have not been run, so
+the schedule is not live. See [`NOTIFICATIONS.md`](NOTIFICATIONS.md).
 
 ### Step 4 is the one that matters
 
@@ -68,6 +77,8 @@ using the thing:
 | **City filter offers 58 real towns + "Other"** | The Meta form takes free text: 231 raw values, 165 appearing once, including pincodes and `chennaiytttt` |
 | **Importer B: Meta is the sole source of deals** | 974 of 1,063 Meta phones also appear in the tracker. The spec's original rule would have created ~974 phantom deals |
 | **Scheduling via Supabase `pg_cron` + `pg_net`** | Hostinger has no scheduler, and this survives a host move. All timing in `Asia/Kolkata` |
+| **`job_config` table for the app URL and cron secret** | The database has to call the app, so it needs both — and neither can go in a migration or in `app_settings`, which every authenticated user can read |
+| **Bulk assign sends no notifications** | Two hundred leads would be two hundred messages to one person. A muted notification system is a decorative one |
 
 ---
 
@@ -81,7 +92,12 @@ using the thing:
   `salesrep@luca.test` / `9000000003`.
   Real accounts get created from Admin → Users after the demo. **Nothing is ever
   emailed** — `.test` cannot receive mail and accounts are created confirmed
-- **WhatsApp is off** (`app_settings.whatsapp_enabled`) and stays off for MVP
+- **WhatsApp is off** (`app_settings.whatsapp_enabled`) and stays off for MVP.
+  All nine templates are `is_approved = false` — Meta reviews each body
+  individually, and until that happens the in-app centre is the only channel,
+  which is **pull, not push**: it reaches nobody who does not open the app
+- **The cron schedule is not live.** `npm run db:push` then `npm run cron:setup`
+  turns it on; `cron:setup` needs `APP_URL` in `.env.local`
 
 ### Things that cost hours to discover
 

@@ -91,3 +91,95 @@ export function resolveRecipients(
       return [];
   }
 }
+
+/**
+ * Every trigger the engine knows about. These are the `trigger_key` values
+ * seeded into notification_rules — the two lists must not drift, so the cron
+ * route asserts against this one and reports anything it cannot place.
+ */
+export const TRIGGER_KEYS = [
+  "lead_assigned",
+  "appointment_tomorrow",
+  "appointment_approaching",
+  "next_action_overdue",
+  "visit_awaiting_verification",
+  "verification_failed",
+  "deal_won",
+  "daily_summary",
+  "uncontacted_leads",
+] as const;
+
+export type TriggerKey = (typeof TRIGGER_KEYS)[number];
+
+/**
+ * Fills `{{name}}` placeholders in an approved template body.
+ *
+ * The wording is fixed — Meta approves each body — so this substitutes and
+ * nothing else. A missing variable renders as an em dash rather than leaving
+ * `{{count}}` on screen, because a half-rendered message reads as a bug to the
+ * person receiving it and there is no way for them to report it.
+ */
+export function renderTemplate(
+  body: string,
+  vars: Record<string, string | number | null | undefined>,
+): string {
+  return body.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => {
+    const value = vars[name];
+    return value === null || value === undefined || value === "" ? "—" : String(value);
+  });
+}
+
+/**
+ * The key that stops a job sending the same thing twice.
+ *
+ * pg_cron fires every 15 minutes and isRuleDue() deliberately tolerates 10
+ * minutes of jitter, so one rule can be "due" on two consecutive ticks. A
+ * unique index on this key turns the second tick into a no-op instead of a
+ * second message. `scope` is whatever makes the notification unique: the IST
+ * date for a daily digest, the appointment id for a per-appointment reminder.
+ *
+ * Event-driven notifications pass no key at all — if a lead really was
+ * assigned twice, that is two events and the timeline should say so.
+ */
+export function dedupeKey(triggerKey: string, userId: string, scope: string): string {
+  return `${triggerKey}:${userId}:${scope}`;
+}
+
+/**
+ * The UTC instants bounding one day in India, and that day's date.
+ *
+ * `dayOffset` 0 is today, 1 tomorrow, -1 yesterday. Needed because "how many
+ * leads arrived today" and "which visits are tomorrow" are questions about
+ * India's calendar, asked by a server that is almost certainly on UTC. India
+ * has no daylight saving, so a day is always exactly 24 hours.
+ */
+export function istDayRange(now: Date, dayOffset = 0): { start: Date; end: Date; ymd: string } {
+  const start = new Date(
+    new Date(`${istParts(now).ymd}T00:00:00+05:30`).getTime() + dayOffset * 86_400_000,
+  );
+  return {
+    start,
+    end: new Date(start.getTime() + 86_400_000),
+    ymd: istParts(start).ymd,
+  };
+}
+
+/**
+ * Which appointment times have their "N minutes before" moment inside this tick.
+ *
+ * Inverts offsetFireTime: the reminder for an appointment fires at
+ * `scheduled_at + offsetMinutes`, so asking which appointments to warn about
+ * now means shifting the tick window the other way and querying scheduled_at
+ * against it. Doing this in the query rather than in JavaScript is what keeps
+ * the job from reading every future appointment on every tick.
+ */
+export function offsetWindow(
+  tickStart: Date,
+  tickEnd: Date,
+  offsetMinutes: number,
+): { from: Date; to: Date } {
+  return {
+    from: new Date(tickStart.getTime() - offsetMinutes * 60_000),
+    to: new Date(tickEnd.getTime() - offsetMinutes * 60_000),
+  };
+}

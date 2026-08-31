@@ -12,7 +12,8 @@ not caught up yet.
 
 ## Where we are
 
-**Steps 1–3 of the ten-step build order are done. Step 4 is next.**
+**Steps 1–3 of the ten-step build order are done, and step 8 (notifications) is
+built ahead of order. Step 4 is still next, and still the one that matters.**
 
 1,073 real Meta leads are live in Supabase. Sign in as `9000000001` (or
 `admin@luca.test`) with `LucaDemo2026!` — the mobile number works as a login.
@@ -21,6 +22,9 @@ Step 4 is the CRM Manager work queue, and its gate decides whether this product
 gets adopted at all: **log 20 RNRs and time it.** RNR is 30% of ~440 leads a
 month. If logging one is slower than typing into a spreadsheet cell, redesign
 before building anything further.
+
+Notifications are wired but the schedule is **not live** — `npm run db:push`
+then `npm run cron:setup`. See [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md).
 
 ---
 
@@ -88,13 +92,15 @@ app/            Routes. Rendering only — thin.
 components/     Presentational. No DB calls, no business rules.
 lib/domain/     Business rules. Pure, no DB, no React, fully tested.
 lib/queries/    Every database read.   lib/actions/  Every database write.
+lib/notifications/  The engine. notify() is the only way anyone is told anything.
 lib/db/         Supabase clients. admin.ts bypasses RLS — read its warning.
 supabase/       Migrations and seed data.
 ```
 
 Every stage transition goes through `lib/domain/stages.ts`. Every permission
-check goes through `lib/domain/permissions.ts`. There is no second path to
-either, and adding one is how this becomes unmaintainable.
+check goes through `lib/domain/permissions.ts`. Every notification goes through
+`notify()` in `lib/notifications/dispatch.ts`. There is no second path to any of
+them, and adding one is how this becomes unmaintainable.
 
 ## Working with real customer data
 
