@@ -14,6 +14,7 @@ import { DEAL_STAGES } from "@/lib/domain/stages";
 import { STAGE_LABELS } from "@/lib/config/design-tokens";
 import { telHref } from "@/lib/domain/phone";
 import { CITY_OTHER } from "@/lib/domain/city";
+import { WORK_PRESETS, presetQuery, activePreset, type WorkPreset } from "@/lib/domain/presets";
 import LeadDrawer, { type DrawerContext } from "@/components/deals/lead-drawer";
 // Type-only: erased at compile time, so it does not pull the server module in.
 import type { DealListRow } from "@/lib/queries/deals";
@@ -37,7 +38,7 @@ export interface BulkAssignConfig {
 }
 
 export default function DealsTable({
-  rows, total, page, perPage, options, showOwners = true, bulk, drawer,
+  rows, total, page, perPage, options, showOwners = true, showPresets = false, bulk, drawer,
 }: {
   rows: DealListRow[];
   total: number;
@@ -45,6 +46,8 @@ export default function DealsTable({
   perPage: number;
   options: Options;
   showOwners?: boolean;
+  /** The CRM Manager's work queue. Off for the rep view, which has its own. */
+  showPresets?: boolean;
   /** Omitted for the rep view, which has nothing to hand out. */
   bulk?: BulkAssignConfig;
   /** Everything the slide-over needs that is the same for every lead. */
@@ -181,11 +184,22 @@ export default function DealsTable({
       return next;
     });
 
-  const FILTER_KEYS = [...LIST_FILTERS, "overdue", "uncontacted"];
+  const FILTER_KEYS = [...LIST_FILTERS, "overdue", "uncontacted", "verification", "waking", "quotesla"];
   const activeFilters = FILTER_KEYS.filter((k) => params.get(k)).length;
   const pages = Math.ceil(total / perPage);
   const allShown = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const columns = (showOwners ? 8 : 7);
+
+  /**
+   * A preset replaces the filter state rather than adding to it: these are
+   * views of the work, not extra conditions on the current one. Clicking the
+   * active one again returns to the plain browsable list.
+   */
+  const preset = activePreset((k) => params.get(k));
+  const applyPreset = (p: WorkPreset) =>
+    startTransition(() =>
+      router.push(preset?.key === p.key ? pathname : `${pathname}?${presetQuery(p)}`),
+    );
 
   const cityOptions = [
     ...options.cities.map((c) => ({ value: c, label: c })),
@@ -198,6 +212,33 @@ export default function DealsTable({
 
   return (
     <div className="space-y-3">
+      {/* The work queue. Ordered, not browsable: each of these is a filter
+          combination plus an oldest-first sort, so a view stays linkable and
+          Export returns exactly what is on screen. */}
+      {showPresets && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Work queue">
+          {WORK_PRESETS.map((p) => {
+            const on = preset?.key === p.key;
+            return (
+              <button
+                key={p.key}
+                type="button"
+                title={p.hint}
+                aria-pressed={on}
+                onClick={() => applyPreset(p)}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  on
+                    ? "border-navy-900 bg-navy-900 font-medium text-white"
+                    : "border-border bg-paper text-ink hover:border-navy-700 hover:bg-navy-100"
+                }`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Row 1 — everything that narrows the list. */}
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -426,7 +467,9 @@ export default function DealsTable({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={columns + 1} className="px-3 py-10 text-center text-sm text-ink-muted">
-                  {activeFilters || q ? "No leads match that." : "No leads yet."}
+                  {preset?.emptyUntil
+                    ? `Nothing here until ${preset.emptyUntil}.`
+                    : activeFilters || q ? "No leads match that." : "No leads yet."}
                 </td>
               </tr>
             )}
@@ -439,6 +482,7 @@ export default function DealsTable({
         ctx={drawer}
         onClose={() => showLead(null)}
         onStep={step}
+        onLogged={() => step(1)}
         position={openIndex >= 0 ? { index: openIndex, total: rows.length } : null}
       />
 

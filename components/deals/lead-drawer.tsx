@@ -9,23 +9,27 @@ import StageBadge from "@/components/deals/stage-badge";
 import Timeline from "@/components/deals/timeline";
 import LogActivity from "@/components/deals/log-activity";
 import { StageControl, NextActionControl } from "@/components/deals/deal-controls";
+import VerificationPanel from "@/components/deals/verification-panel";
 import { age } from "@/components/deals/relative-time";
 import { allowedTransitions, type DealStage } from "@/lib/domain/stages";
 import { telHref } from "@/lib/domain/phone";
 import { formatAmount, formatDate } from "@/lib/config/design-tokens";
 import type { Role } from "@/lib/domain/permissions";
-import type { ListValue } from "@/lib/types";
+import type { ListValue, VisitVerification } from "@/lib/types";
 import type { DealDetail, TimelineEntry } from "@/lib/queries/deals";
 
 export interface DrawerContext {
   role: Role;
   requiredFieldsForAppointment: string[];
   lists: Record<string, ListValue[]>;
+  canVerify: boolean;
+  canResolveVerification: boolean;
 }
 
 interface Payload {
   deal: DealDetail;
   timeline: TimelineEntry[];
+  verifications: (VisitVerification & { verified_by_name: string | null })[];
 }
 
 /**
@@ -37,13 +41,18 @@ interface Payload {
  * that, "Open full deal" goes to the real page.
  */
 export default function LeadDrawer({
-  dealId, ctx, onClose, onStep, position,
+  dealId, ctx, onClose, onStep, onLogged, position,
 }: {
   dealId: string | null;
   ctx: DrawerContext;
   onClose: () => void;
   /** Move to the previous/next lead in the list currently on screen. */
   onStep: (direction: -1 | 1) => void;
+  /**
+   * A call was logged by keystroke rather than click — move on. This is what
+   * makes running down the queue one interaction per lead instead of two.
+   */
+  onLogged?: () => void;
   position: { index: number; total: number } | null;
 }) {
   const [payload, setPayload] = useState<Payload | null>(null);
@@ -216,9 +225,29 @@ export default function LeadDrawer({
               <p className="text-sm text-ink-muted">Budget {formatAmount(deal.budget_amount)}</p>
             ) : null}
 
+            {/* Keyed on the deal: stepping to the next lead must not carry
+                over a half-typed note, the chosen tab, or the pending state of
+                the log that just fired. */}
             <Card title="Log what happened">
-              <LogActivity dealId={deal.id} dispositions={ctx.lists.call_disposition ?? []} />
+              <LogActivity
+                key={deal.id}
+                dealId={deal.id}
+                dispositions={ctx.lists.call_disposition ?? []}
+                onLogged={onLogged}
+              />
             </Card>
+
+            {/* The Awaiting-verification preset rings down this list, so the
+                call gets recorded here rather than on the full deal page.
+                Renders nothing on a deal with no visit to verify. */}
+            <VerificationPanel
+              key={deal.id}
+              dealId={deal.id}
+              status={deal.visit_verification_status}
+              verifications={payload!.verifications}
+              canVerify={ctx.canVerify}
+              canResolve={ctx.canResolveVerification}
+            />
 
             <StageControl
               dealId={deal.id}
@@ -251,6 +280,7 @@ export default function LeadDrawer({
           </Link>
           <span className="ml-3 text-xs text-ink-muted">
             Esc closes · <kbd>↑</kbd> <kbd>↓</kbd> move between leads
+            {onLogged && <> · <kbd>1</kbd> logs RNR and moves on</>}
           </span>
         </footer>
       )}

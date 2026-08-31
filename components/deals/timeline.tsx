@@ -1,4 +1,4 @@
-import { STAGE_LABELS, formatDateTime } from "@/lib/config/design-tokens";
+import { STAGE_LABELS, formatAmount, formatDateTime } from "@/lib/config/design-tokens";
 import type { DealStage } from "@/lib/domain/stages";
 import type { TimelineEntry } from "@/lib/queries/deals";
 
@@ -26,15 +26,63 @@ const TYPE_META: Record<string, { label: string; dot: string }> = {
   imported_note:       { label: "From spreadsheet", dot: "bg-parked" },
 };
 
+const VERIFICATION_SAID: Record<string, string> = {
+  confirmed:   "Customer confirmed the visit",
+  failed:      "Customer says no visit happened",
+  unreachable: "Could not reach the customer",
+};
+
+/**
+ * The one-line summary. Everything here reads off `metadata`, which the server
+ * actions write — the timeline never queries anything itself.
+ */
 function describe(entry: TimelineEntry): string | null {
+  const m = (entry.metadata ?? {}) as Record<string, unknown>;
+
   if (entry.type === "stage_change") {
-    const m = entry.metadata as { from?: string; to?: string } | null;
-    if (m?.to) {
-      const to = STAGE_LABELS[m.to as DealStage] ?? m.to;
-      const from = m.from ? STAGE_LABELS[m.from as DealStage] ?? m.from : null;
-      return from ? `${from} → ${to}` : `Moved to ${to}`;
+    const to = m.to as string | undefined;
+    if (to) {
+      const label = STAGE_LABELS[to as DealStage] ?? to;
+      const from = m.from ? STAGE_LABELS[m.from as DealStage] ?? String(m.from) : null;
+      return from ? `${from} → ${label}` : `Moved to ${label}`;
     }
   }
+
+  if (entry.type === "appointment_set" && m.scheduled_at) {
+    return `Visit booked for ${formatDateTime(String(m.scheduled_at))}`;
+  }
+
+  if (entry.type === "appointment_changed") {
+    if (m.status) {
+      const status = String(m.status);
+      return status === "confirmed" ? "Visit confirmed"
+        : status === "cancelled" ? "Visit cancelled"
+        : status === "no_show" ? "Customer did not show" : `Visit ${status}`;
+    }
+    if (m.to) return `Moved to ${formatDateTime(String(m.to))}`;
+  }
+
+  // Location is a deterrent, not proof — but its absence is worth seeing.
+  if ((entry.type === "visit_started" || entry.type === "visit_completed") && m.lat === null) {
+    return entry.type === "visit_started" ? "Checked in — no location" : "Visit done — no location";
+  }
+
+  if (entry.type === "verification_call") {
+    if (m.resolved_to) {
+      return m.resolved_to === "confirmed"
+        ? "Admin resolved: the visit did happen"
+        : "Admin resolved: the check does not apply";
+    }
+    if (m.outcome) return VERIFICATION_SAID[String(m.outcome)] ?? String(m.outcome);
+  }
+
+  if (entry.type === "quote_sent") {
+    const parts = [`Quote v${m.version_no ?? "?"}`];
+    if (typeof m.amount === "number") parts.push(formatAmount(m.amount));
+    if (m.is_final) parts.push("final");
+    return parts.join(" · ");
+  }
+
   return null;
 }
 

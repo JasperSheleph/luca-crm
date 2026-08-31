@@ -30,7 +30,6 @@ async function context(dealId: string): Promise<
 function refresh(dealId: string) {
   revalidatePath(`/deals/${dealId}`);
   revalidatePath("/deals");
-  revalidatePath("/queue");
   revalidatePath("/my-deals");
 }
 

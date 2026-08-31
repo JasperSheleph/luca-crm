@@ -96,3 +96,69 @@ export interface Activity {
   occurred_at: string;
   created_at: string;
 }
+
+export interface Appointment {
+  id: string;
+  deal_id: string;
+  rep_id: string | null;
+  scheduled_at: string;
+  status: AppointmentStatus;
+  rescheduled_from: string | null;
+  reschedule_reason: string | null;
+  rep_confirmed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface Visit {
+  id: string;
+  deal_id: string;
+  appointment_id: string | null;
+  rep_id: string | null;
+  started_at: string | null;
+  start_lat: number | null;
+  start_lng: number | null;
+  completed_at: string | null;
+  end_lat: number | null;
+  end_lng: number | null;
+  notes: string | null;
+}
+
+export interface VisitVerification {
+  id: number;
+  deal_id: string;
+  visit_id: string | null;
+  verified_by: string | null;
+  called_at: string;
+  outcome: VerificationStatus;
+  notes: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  resolution_notes: string | null;
+}
+
+export interface Quote {
+  id: string;
+  deal_id: string;
+  version_no: number;
+  /** A storage PATH inside the private `quotes` bucket, never a signed URL. */
+  file_url: string | null;
+  file_type: string | null;
+  amount: number | null;
+  is_final: boolean;
+  notes: string | null;
+  sent_by: string | null;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface Attachment {
+  id: string;
+  deal_id: string;
+  /** "visit_photo" today. A storage path in `visit-photos`. */
+  type: string;
+  file_url: string;
+  file_size: number | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+}

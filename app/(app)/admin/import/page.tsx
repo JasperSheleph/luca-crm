@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import PageHeader from "@/components/ui/page-header";
 import MetaImport from "./meta-import";
+import TrackerImport from "./tracker-import";
 
 export default async function Page() {
   await requireRole("admin");
@@ -8,9 +9,12 @@ export default async function Page() {
     <>
       <PageHeader
         title="Import"
-        subtitle="Meta Lead Ads CSV. Run this first — the legacy tracker importer depends on it."
+        subtitle="Meta first, then the tracker. The order is required — the tracker matches against deals Meta has already created."
       />
-      <MetaImport />
+      <div className="space-y-4">
+        <MetaImport />
+        <TrackerImport />
+      </div>
     </>
   );
 }
