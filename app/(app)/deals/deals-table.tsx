@@ -10,7 +10,7 @@ import Button from "@/components/ui/button";
 import MultiSelect from "@/components/ui/multi-select";
 import { inputBase } from "@/components/ui/field";
 import { bulkAssign, type DealActionState } from "@/lib/actions/deals";
-import { DEAL_STAGES, VERIFICATION_FILTER_OPTIONS, VERIFICATION_LABELS } from "@/lib/domain/stages";
+import { DEAL_STAGES, VERIFICATION_FILTER_OPTIONS } from "@/lib/domain/stages";
 import { STAGE_LABELS } from "@/lib/config/design-tokens";
 import { telHref } from "@/lib/domain/phone";
 import { CITY_OTHER } from "@/lib/domain/city";
@@ -440,17 +440,12 @@ export default function DealsTable({
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-ink-muted">{d.source_label || "—"}</td>
                   <td className="px-3 py-2 text-ink-muted">{d.city || "—"}</td>
+                  {/* Stage only. The visit check is a detail of one deal, not
+                      a column worth carrying down a thousand rows — it lives in
+                      the lead drawer and the full page. The filter above still
+                      narrows the list by it. */}
                   <td className="px-3 py-2">
                     <StageBadge stage={d.stage} firstContactedAt={d.first_contacted_at} size="sm" />
-                    {/* Without this, filtering by visit check gives a list with
-                        nothing on screen saying why those rows are there. */}
-                    {d.visit_verification_status !== "not_required" && (
-                      <div className="mt-1">
-                        <Badge tone={VERIFICATION_LABELS[d.visit_verification_status].tone}>
-                          {VERIFICATION_LABELS[d.visit_verification_status].label}
-                        </Badge>
-                      </div>
-                    )}
                   </td>
                   {showOwners && (
                     <td className="px-3 py-2 text-ink-muted">
