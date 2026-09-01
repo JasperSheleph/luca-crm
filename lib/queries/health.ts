@@ -52,7 +52,7 @@ function usage(used: number, limit: number, label: string, key: string): Check {
     detail:
       state === "good"
         ? `${bytes(used)} of ${bytes(limit)}`
-        : `${bytes(used)} of ${bytes(limit)}. Upgrade the Supabase plan, then change the allowance in Settings.`,
+        : `${bytes(used)} of ${bytes(limit)}. Upgrade the Supabase plan, then change the allowance below.`,
   };
 }
 

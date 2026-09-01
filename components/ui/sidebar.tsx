@@ -14,7 +14,11 @@ export default function Sidebar({
   unreadCount?: number;
 }) {
   return (
-    <aside className="hidden w-56 shrink-0 flex-col bg-navy-900 md:flex">
+    /* Sticky and exactly one screen tall, so who-you-are and Sign out are
+       always on screen. Without it the column is only as tall as the page and
+       the footer scrolls away with the content — on a long deal list it ended
+       up thousands of pixels down. The nav scrolls inside instead. */
+    <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-navy-900 md:flex">
       <div className="px-4 py-5">
         <Link href="/">
           <Image
@@ -25,7 +29,7 @@ export default function Sidebar({
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-2">
+      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2">
         {items.map((item) => (
           <NavLink
             key={item.href}
@@ -36,7 +40,7 @@ export default function Sidebar({
         ))}
       </nav>
 
-      <div className="border-t border-white/10 p-3">
+      <div className="shrink-0 border-t border-white/10 p-3">
         <p className="truncate text-sm font-medium text-white">{user.name}</p>
         <p className="mb-2 text-xs text-white/60">{ROLE_LABELS[user.role]}</p>
         <form action={signOut}>

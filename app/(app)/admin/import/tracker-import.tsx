@@ -37,9 +37,21 @@ export default function TrackerImport() {
   return (
     <Card
       title="Legacy sales tracker"
-      description="Their working file. Run this after the Meta import — the order is required, not incidental."
+      description="The spreadsheet LUCA worked from before this CRM. Run after the Meta import — the order is required, not incidental."
+      actions={<Badge tone="warning">One-time migration</Badge>}
     >
       <div className="space-y-4">
+        {/* Said plainly because the page gives no other clue: this is not a
+            recurring job. From go-live the CRM is the tracker, and a second
+            run would re-add history that is already here. */}
+        <p className="rounded-md bg-navy-50 px-3 py-2 text-xs text-ink-muted">
+          <strong className="text-ink">Run this once, at go-live, and never again.</strong>{" "}
+          It brings the old spreadsheet&rsquo;s history into the CRM. After that the CRM
+          is the tracker — new leads arrive from Meta and everything else is logged here,
+          so there is nothing left for this to import. Activity history cannot be deleted
+          from the app, so a second run cannot be cleanly undone.
+        </p>
+
         <form action={previewAction} className="space-y-3">
           <input
             type="file" name="file" accept=".csv,text/csv" required

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
-import { getCurrentUser } from "@/lib/queries/users";
+import { getCurrentUser, assigneeHoldsRole } from "@/lib/queries/users";
 import { can, canViewDeal } from "@/lib/domain/permissions";
 import { canTransition, type DealStage } from "@/lib/domain/stages";
 import type { AppUser, AppointmentStatus } from "@/lib/types";
@@ -85,6 +85,31 @@ export async function scheduleAppointment(
     .insert({ deal_id: dealId, rep_id: repId, scheduled_at: scheduledAt, created_by: user.id })
     .select("id").single();
   if (error) return { error: error.message };
+
+  // Booking a visit for a rep IS handing him the deal. Without this the
+  // appointment carries his id while `deals.rep_owner_id` stays null, and RLS
+  // scopes the rep's every screen — /today included — through that column, so
+  // the visit he is expected to make is invisible to him. Found exactly that
+  // way: an appointment booked for today that never appeared on Today.
+  if (repId && repId !== deal.rep_owner_id) {
+    const check = await assigneeHoldsRole(repId, "sales_rep");
+    if (check.ok) {
+      await supabase.from("deals").update({ rep_owner_id: repId }).eq("id", dealId);
+      if (deal.rep_owner_id) {
+        await supabase.from("assignments")
+          .update({ unassigned_at: new Date().toISOString() })
+          .eq("deal_id", dealId).eq("user_id", deal.rep_owner_id as string).is("unassigned_at", null);
+      }
+      await supabase.from("assignments").insert({
+        deal_id: dealId, user_id: repId, role_at_assignment: "sales_rep", assigned_by: user.id,
+      });
+      await supabase.from("activities").insert({
+        deal_id: dealId, user_id: user.id, type: "assignment",
+        notes: `Assigned to ${check.name}`,
+        metadata: { role: "sales_rep", user_id: repId, via: "appointment" },
+      });
+    }
+  }
 
   await supabase.from("activities").insert({
     deal_id: dealId,

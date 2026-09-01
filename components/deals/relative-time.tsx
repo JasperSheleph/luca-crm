@@ -12,6 +12,20 @@ export function age(from: string | null | undefined): string {
   return months === 1 ? "1 month" : `${months} months`;
 }
 
+/**
+ * Whole days, as a number.
+ *
+ * For the deals table, where `age()` printed "days" on all fifty rows under a
+ * column already headed Age — and where the varying word widths meant the
+ * tabular right-alignment never actually lined the numbers up. Prose keeps
+ * `age()`; a column of numbers gets its unit in the header.
+ */
+export function ageDays(from: string | null | undefined): number | null {
+  if (!from) return null;
+  const days = Math.floor((Date.now() - new Date(from).getTime()) / 86_400_000);
+  return days < 0 ? null : days;
+}
+
 /** Overdue reads as a duration past due, not a date to subtract in your head. */
 export function dueLabel(at: string | null | undefined): { text: string; overdue: boolean } | null {
   if (!at) return null;

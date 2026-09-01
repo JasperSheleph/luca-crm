@@ -2,8 +2,7 @@
 
 import { useActionState, useState } from "react";
 import {
-  changeStage, assignDeal, updateQualification, setNextAction,
-  type DealActionState,
+  changeStage, assignDeal, updateQualification, type DealActionState,
 } from "@/lib/actions/deals";
 import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
@@ -162,34 +161,6 @@ export function AssignControl({
   );
 }
 
-/* -------------------------------------------------------- next action */
-
-export function NextActionControl({
-  dealId, at, note,
-}: {
-  dealId: string;
-  at: string | null;
-  note: string | null;
-}) {
-  const [state, action, pending] = useActionState<DealActionState, FormData>(setNextAction, {});
-  useDealChanged(state);
-  return (
-    <Card title="Next action">
-      <form action={action} className="space-y-2">
-        <input type="hidden" name="deal_id" value={dealId} />
-        <div className="flex flex-wrap gap-2">
-          <input name="next_action_at" type="date" defaultValue={at?.slice(0, 10) ?? ""}
-                 aria-label="Next action date" className={`${inputBase} w-44`} />
-          <input name="next_action_note" defaultValue={note ?? ""} placeholder="What needs doing"
-                 aria-label="Next action note" className={`${inputBase} min-w-0 flex-1`} />
-          <Button type="submit" size="sm" variant="secondary" disabled={pending}>Set</Button>
-        </div>
-        <Note state={state} />
-      </form>
-    </Card>
-  );
-}
-
 /* ------------------------------------------------------- qualification */
 
 export function QualificationPanel({
@@ -207,8 +178,6 @@ export function QualificationPanel({
   ].filter((f) => deal[f] !== null && deal[f] !== undefined && deal[f] !== "").length;
 
   const missing = requiredFields.filter((f) => deal[f] === null || deal[f] === undefined || deal[f] === "");
-  // Collapsed by default, so it never stands between the user and logging a call.
-  const [open, setOpen] = useState(missing.length > 0);
   const [state, action, pending] = useActionState<DealActionState, FormData>(updateQualification, {});
   useDealChanged(state);
 
@@ -225,54 +194,46 @@ export function QualificationPanel({
     <Card
       title="Site details"
       description={`${filled} of 8 filled${missing.length ? ` · ${missing.length} needed before booking a visit` : ""}`}
-      actions={
-        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen((v) => !v)}>
-          {open ? "Hide" : "Show"}
-        </Button>
-      }
     >
-      {!open ? (
-        <p className="text-sm text-ink-muted">
-          All optional. Fill them in when you know them — never before logging the call.
-        </p>
-      ) : (
-        <form action={action} className="space-y-3">
-          <input type="hidden" name="deal_id" value={dealId} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Floors" htmlFor="floors">
-              <input id="floors" name="floors" type="number" min={0} defaultValue={String(deal.floors ?? "")}
-                     disabled={!editable} className={inputClass} />
-            </Field>
-            {select("property_type_id", "Property type", "property_type")}
-            {select("building_subtype_id", "Building type", "building_subtype")}
-            {select("lift_mechanism_id", "Lift mechanism", "lift_mechanism")}
-            {select("construction_status_id", "Construction status", "construction_status")}
-            {select("space_available_id", "Space available", "space_available")}
-            <Field label="Number of lifts" htmlFor="num_lifts">
-              <input id="num_lifts" name="num_lifts" type="number" min={1} defaultValue={String(deal.num_lifts ?? "")}
-                     disabled={!editable} className={inputClass} />
-            </Field>
-            <Field label="Budget" htmlFor="budget_amount">
-              <input id="budget_amount" name="budget_amount" type="number" min={0}
-                     defaultValue={String(deal.budget_amount ?? "")} disabled={!editable} className={inputClass} />
-            </Field>
-            <Field label="Timeline" htmlFor="timeline_months" hint="Free text — 2 months, next year, whenever">
-              <input id="timeline_months" name="timeline_months" defaultValue={String(deal.timeline_months ?? "")}
-                     disabled={!editable} className={inputClass} />
-            </Field>
-            <Field label="Space they have" htmlFor="minimum_space" hint="Free text — a sales reference, not a spec">
-              <input id="minimum_space" name="minimum_space" defaultValue={String(deal.minimum_space ?? "")}
-                     disabled={!editable} className={inputClass} />
-            </Field>
-          </div>
-          <Field label="Site address" htmlFor="site_address">
-            <textarea id="site_address" name="site_address" rows={2} defaultValue={String(deal.site_address ?? "")}
-                      disabled={!editable} className={inputClass} />
+      {/* Always open. It was collapsed so it could never stand between the user
+          and logging a call, but the call panel is no longer underneath it —
+          hiding it only meant a click to find out there was nothing to see. */}
+      <form action={action} className="space-y-3">
+        <input type="hidden" name="deal_id" value={dealId} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Floors" htmlFor="floors">
+            <input id="floors" name="floors" type="number" min={0} defaultValue={String(deal.floors ?? "")}
+                   disabled={!editable} className={inputClass} />
           </Field>
-          {editable && <Button type="submit" size="sm" variant="secondary" disabled={pending}>Save</Button>}
-          <Note state={state} />
-        </form>
-      )}
+          {select("property_type_id", "Property type", "property_type")}
+          {select("building_subtype_id", "Building type", "building_subtype")}
+          {select("lift_mechanism_id", "Lift mechanism", "lift_mechanism")}
+          {select("construction_status_id", "Construction status", "construction_status")}
+          {select("space_available_id", "Space available", "space_available")}
+          <Field label="Number of lifts" htmlFor="num_lifts">
+            <input id="num_lifts" name="num_lifts" type="number" min={1} defaultValue={String(deal.num_lifts ?? "")}
+                   disabled={!editable} className={inputClass} />
+          </Field>
+          <Field label="Budget" htmlFor="budget_amount">
+            <input id="budget_amount" name="budget_amount" type="number" min={0}
+                   defaultValue={String(deal.budget_amount ?? "")} disabled={!editable} className={inputClass} />
+          </Field>
+          <Field label="Timeline" htmlFor="timeline_months" hint="Free text — 2 months, next year, whenever">
+            <input id="timeline_months" name="timeline_months" defaultValue={String(deal.timeline_months ?? "")}
+                   disabled={!editable} className={inputClass} />
+          </Field>
+          <Field label="Space they have" htmlFor="minimum_space" hint="Free text — a sales reference, not a spec">
+            <input id="minimum_space" name="minimum_space" defaultValue={String(deal.minimum_space ?? "")}
+                   disabled={!editable} className={inputClass} />
+          </Field>
+        </div>
+        <Field label="Site address" htmlFor="site_address">
+          <textarea id="site_address" name="site_address" rows={2} defaultValue={String(deal.site_address ?? "")}
+                    disabled={!editable} className={inputClass} />
+        </Field>
+        {editable && <Button type="submit" size="sm" variant="secondary" disabled={pending}>Save</Button>}
+        <Note state={state} />
+      </form>
     </Card>
   );
 }

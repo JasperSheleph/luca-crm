@@ -9,7 +9,7 @@ export default async function Page() {
     <>
       <PageHeader
         title="Import"
-        subtitle="Meta first, then the tracker. The order is required — the tracker matches against deals Meta has already created."
+        subtitle="Meta leads import whenever you have a new export. The tracker below is a one-time migration of the old spreadsheet, and must run after a Meta import."
       />
       <div className="space-y-4">
         <MetaImport />

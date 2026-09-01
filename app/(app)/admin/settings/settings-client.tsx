@@ -40,9 +40,16 @@ const LIST_LABELS: Record<string, { title: string; description: string }> = {
   space_available:    { title: "Space available", description: "" },
 };
 
+/**
+ * The allowlist for what this page renders — a key not in here is not shown.
+ *
+ * The two Supabase plan allowances deliberately are not here: they are edited
+ * on Admin → Health, beside the two percentages they scale. Nothing about how
+ * LUCA works depends on them.
+ */
 const SETTING_HELP: Record<string, { title: string; help: string }> = {
   lead_assignment_mode:            { title: "How new leads are shared out", help: '"auto_single" sends everything to one CRM Manager, "round_robin" spreads them evenly, "manual" leaves them for an admin to assign.' },
-  budget_bands:                    { title: "Budget bands", help: "Used for grouping on the dashboard. Each band needs a label and the amount it runs up to." },
+  budget_bands:                    { title: "Budget bands", help: "Groups deals into budget ranges in the CSV export. Each band needs a label and the amount it runs up to." },
   required_fields_for_appointment: { title: "Needed before booking a site visit", help: "The only qualification gate in the system. Everything else stays optional on purpose — a field that blocks work does not get filled." },
   service_area_cities:             { title: "Service area", help: "Tamil Nadu and Puducherry. Around 60% of leads are outside Chennai; that is normal business, not a warning." },
   city_aliases:                    { title: "City spellings", help: 'Their data holds hundreds of spellings for about 30 cities. Map each variant to one name, e.g. "trichy": "tiruchirappalli".' },
@@ -51,8 +58,6 @@ const SETTING_HELP: Record<string, { title: string; help: string }> = {
   whatsapp_enabled:                { title: "WhatsApp messages", help: "Off until a WhatsApp number is registered. Everything still appears in the in-app notification centre either way." },
   rep_initials_map:                { title: "Rep initials", help: 'For the legacy tracker import: maps initials like "JN" to a person.' },
   stalled_deal_days:               { title: "When a deal counts as stalled", help: "Days with nothing logged before the dashboard flags an open deal as going cold." },
-  database_limit_bytes:            { title: "Database allowance", help: "Whatever your Supabase plan includes, in bytes. Free is 536870912 (512 MB); Pro is 8589934592 (8 GB). Only used for the percentage on the Health page." },
-  storage_limit_bytes:             { title: "File storage allowance", help: "Whatever your Supabase plan includes, in bytes. Free is 1073741824 (1 GB); Pro is 107374182400 (100 GB). Only used for the percentage on the Health page." },
 };
 
 function Note({ state }: { state: ActionState }) {
@@ -130,10 +135,6 @@ function SettingControl({ settingKey, value }: { settingKey: string; value: unkn
       return <NumberEditor value={value} suffix="hours before both admins are told" />;
     case "stalled_deal_days":
       return <NumberEditor value={value} suffix="days with nothing logged" />;
-    case "database_limit_bytes":
-      return <NumberEditor value={value} suffix="bytes — 8589934592 on Supabase Pro" />;
-    case "storage_limit_bytes":
-      return <NumberEditor value={value} suffix="bytes — 107374182400 on Supabase Pro" />;
     case "quote_followup_days":
       return <NumberListEditor value={value} suffix="days after the quote goes out" />;
     case "service_area_cities":

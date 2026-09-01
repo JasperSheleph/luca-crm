@@ -1,7 +1,11 @@
 import { requireRole } from "@/lib/auth";
 import { getHealth, type CheckState } from "@/lib/queries/health";
+import { getSettings } from "@/lib/queries/settings";
 import PageHeader from "@/components/ui/page-header";
 import Card from "@/components/ui/card";
+import Meter from "@/components/dashboard/meter";
+import { ATTENTION_STATES } from "@/lib/config/design-tokens";
+import AllowanceEditor from "@/components/health/allowance-editor";
 
 /**
  * Is anything wrong? Written for someone who does not code.
@@ -14,16 +18,12 @@ import Card from "@/components/ui/card";
  * reader too.
  */
 
-const STATE: Record<CheckState, { text: string; word: string; mark: string }> = {
-  good:    { text: "text-success",   word: "Fine",            mark: "✓" },
-  warning: { text: "text-warning",   word: "Worth a look",    mark: "!" },
-  serious: { text: "text-danger",    word: "Needs attention", mark: "!!" },
-  neutral: { text: "text-ink-muted", word: "",                mark: "·" },
-};
+const STATE: Record<CheckState, { text: string; word: string; mark: string }> =
+  ATTENTION_STATES;
 
 export default async function Page() {
   await requireRole("admin");
-  const checks = await getHealth();
+  const [checks, settings] = await Promise.all([getHealth(), getSettings()]);
 
   return (
     <>
@@ -55,14 +55,10 @@ export default async function Page() {
                 {/* A share of an allowance is easier to judge as a length than
                     as a number, so the two that have one get a bar. */}
                 {c.fraction !== undefined && (
-                  <div className="h-1.5 w-full rounded-full bg-navy-100">
-                    <div
-                      className={`h-1.5 rounded-full ${
-                        c.state === "serious" ? "bg-danger" : c.state === "warning" ? "bg-warning" : "bg-navy-700"
-                      }`}
-                      style={{ width: `${Math.min(100, Math.round(c.fraction * 100))}%` }}
-                    />
-                  </div>
+                  <Meter
+                    value={c.fraction} max={1}
+                    fill={c.state === "serious" ? "bg-danger" : c.state === "warning" ? "bg-warning" : "bg-navy-700"}
+                  />
                 )}
               </li>
             );
@@ -70,11 +66,10 @@ export default async function Page() {
         </ul>
       </Card>
 
-      <p className="mt-4 text-xs text-ink-muted">
-        Storage and database percentages are measured against the allowance for your
-        Supabase plan, which is set in Admin → Settings. Change it there when the plan
-        changes — the numbers are meaningless against the wrong allowance.
-      </p>
+      <AllowanceEditor
+        databaseBytes={Number(settings.database_limit_bytes ?? 0)}
+        storageBytes={Number(settings.storage_limit_bytes ?? 0)}
+      />
     </>
   );
 }

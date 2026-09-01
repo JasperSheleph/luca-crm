@@ -15,6 +15,10 @@ export interface NavItem {
  * Admin is a superset of CRM Manager — see lib/domain/permissions.ts.
  */
 export const NAV: NavItem[] = [
+  // First for the admin: it is the only screen that answers "does anything
+  // need me today" before you have decided what to look at.
+  { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                     mobile: true },
+
   { href: "/today",            label: "Today",     roles: ["sales_rep"],                 mobile: true },
   { href: "/my-deals",         label: "My Deals",  roles: ["sales_rep"],                 mobile: true },
 
@@ -26,11 +30,15 @@ export const NAV: NavItem[] = [
   // Everyone gets these, whatever their role.
   { href: "/notifications",    label: "Alerts",    roles: ["admin", "crm_manager", "sales_rep"], mobile: true },
 
-  { href: "/admin/dashboard",  label: "Dashboard", roles: ["admin"],                     mobile: true },
   { href: "/admin/users",      label: "Users",     roles: ["admin"] },
   { href: "/admin/settings",   label: "Settings",  roles: ["admin"] },
   { href: "/admin/import",     label: "Import",    roles: ["admin"] },
   { href: "/admin/health",     label: "Health",    roles: ["admin"] },
+
+  // Last on the bar on purpose. The sidebar already carries who-you-are and
+  // Sign out, but the sidebar is desktop-only, and the reps — the people most
+  // likely to need it — only ever see a phone.
+  { href: "/account",          label: "Account",   roles: ["admin", "crm_manager", "sales_rep"], mobile: true },
 ];
 
 export function navFor(role: Role): NavItem[] {

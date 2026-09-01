@@ -15,6 +15,33 @@ export type DealStage = (typeof DEAL_STAGES)[number];
 export type VerificationStatus =
   | "not_required" | "pending" | "confirmed" | "failed" | "unreachable";
 
+/**
+ * How each visit-check state is named to a person, and how it is toned.
+ *
+ * One map, because the same `pending` state used to be "Awaiting call" on the
+ * deal page, "Awaiting verification" as a queue chip and "verification call
+ * pending" in the WhatsApp template — three names for one thing, none of which
+ * said who was being rung.
+ *
+ * Lives here beside the type rather than in a component: it is read by the
+ * verification panel, the deals table and the deals filter.
+ */
+export const VERIFICATION_LABELS: Record<
+  VerificationStatus,
+  { label: string; tone: "neutral" | "warning" | "success" | "danger" }
+> = {
+  not_required: { label: "No visit to check",       tone: "neutral" },
+  pending:      { label: "Visit not yet confirmed", tone: "warning" },
+  confirmed:    { label: "Visit confirmed",         tone: "success" },
+  failed:       { label: "Customer says no visit — frozen", tone: "danger" },
+  unreachable:  { label: "Customer unreachable",    tone: "warning" },
+};
+
+/** The visit-check states worth filtering a list by. */
+export const VERIFICATION_FILTER_OPTIONS = (
+  ["pending", "failed", "unreachable", "confirmed"] as const
+).map((v) => ({ value: v, label: VERIFICATION_LABELS[v].label }));
+
 /** Allowed moves. Anything not listed here is refused. */
 const TRANSITIONS: Record<DealStage, DealStage[]> = {
   qualifying:            ["appointment_scheduled", "nurture", "lost", "not_pursued"],

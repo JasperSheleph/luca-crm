@@ -17,8 +17,13 @@ const STATUS_TONE: Record<AppointmentStatus, "neutral" | "warning" | "success"> 
   completed: "success", cancelled: "neutral", no_show: "warning",
 };
 
+/**
+ * Named for what actually happened, not for the enum. "Confirmed" on its own
+ * read as "the visit is confirmed to have taken place" — which is the
+ * verification call's job, after the visit, not this panel's before it.
+ */
 const STATUS_LABEL: Record<AppointmentStatus, string> = {
-  scheduled: "Booked", confirmed: "Confirmed", rescheduled: "Moved",
+  scheduled: "Booked", confirmed: "Rep confirmed", rescheduled: "Moved",
   completed: "Done", cancelled: "Cancelled", no_show: "No show",
 };
 
@@ -78,7 +83,7 @@ export default function AppointmentPanel({
                     <input type="hidden" name="deal_id" value={dealId} />
                     <input type="hidden" name="appointment_id" value={live.id} />
                     <input type="hidden" name="status" value="confirmed" />
-                    <Button size="sm" variant="secondary">Confirm</Button>
+                    <Button size="sm" variant="secondary">Rep is going</Button>
                   </form>
                 )}
                 <Button
@@ -91,7 +96,7 @@ export default function AppointmentPanel({
                   <input type="hidden" name="deal_id" value={dealId} />
                   <input type="hidden" name="appointment_id" value={live.id} />
                   <input type="hidden" name="status" value="cancelled" />
-                  <Button size="sm" variant="ghost">Cancel</Button>
+                  <Button size="sm" variant="ghost">Cancel visit</Button>
                 </form>
               </div>
             )}

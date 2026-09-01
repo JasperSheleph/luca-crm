@@ -38,7 +38,7 @@ export const WORK_PRESETS: readonly WorkPreset[] = [
   },
   {
     key: "awaiting-verification",
-    label: "Awaiting verification",
+    label: "Visit not yet confirmed",
     hint: "A site visit was marked complete and the customer has not confirmed it.",
     params: { verification: "pending", sort: "oldest" },
     emptyUntil: "reps start logging site visits",
@@ -51,7 +51,7 @@ export const WORK_PRESETS: readonly WorkPreset[] = [
   },
   {
     key: "waking",
-    label: "Waking today",
+    label: "Parked leads due today",
     hint: "Parked in Nurture with a wake date of today or earlier.",
     params: { waking: "1", sort: "oldest" },
   },
@@ -91,7 +91,7 @@ export function activePreset(get: (key: string) => string | undefined | null): W
  * Throws at module load rather than returning undefined: a broken key should
  * fail the build, not send someone to a blank page six months from now.
  */
-function preset(key: string): WorkPreset {
+export function presetByKey(key: string): WorkPreset {
   const found = WORK_PRESETS.find((p) => p.key === key);
   if (!found) throw new Error(`Unknown work preset: ${key}`);
   return found;
@@ -105,5 +105,5 @@ export const TO_CALL = WORK_PRESETS[0];
  * overdue" has to land on the eleven deals, sorted the way they are worked —
  * which is what a preset is, and why these are not hand-written query strings.
  */
-export const OVERDUE = preset("overdue");
-export const AWAITING_VERIFICATION = preset("awaiting-verification");
+export const OVERDUE = presetByKey("overdue");
+export const AWAITING_VERIFICATION = presetByKey("awaiting-verification");

@@ -9,15 +9,8 @@ import {
   recordVerification, resolveVerification, type VerificationState,
 } from "@/lib/actions/verification";
 import { formatDateTime } from "@/lib/config/design-tokens";
+import { VERIFICATION_LABELS as STATUS } from "@/lib/domain/stages";
 import type { VerificationStatus, VisitVerification } from "@/lib/types";
-
-const STATUS: Record<VerificationStatus, { label: string; tone: "neutral" | "warning" | "success" | "danger" }> = {
-  not_required: { label: "Not needed",  tone: "neutral" },
-  pending:      { label: "Awaiting call", tone: "warning" },
-  confirmed:    { label: "Confirmed",   tone: "success" },
-  failed:       { label: "Failed — frozen", tone: "danger" },
-  unreachable:  { label: "Unreachable", tone: "warning" },
-};
 
 /**
  * The verification gate.

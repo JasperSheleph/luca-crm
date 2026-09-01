@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
-import { getCurrentUser } from "@/lib/queries/users";
-import { can, canViewDeal, ROLE_LABELS, type Role } from "@/lib/domain/permissions";
+import { getCurrentUser, assigneeHoldsRole } from "@/lib/queries/users";
+import { can, canViewDeal } from "@/lib/domain/permissions";
 import { canTransition, type DealStage } from "@/lib/domain/stages";
 import { fireNotification, dealNotificationVars } from "@/lib/notifications/from-action";
 import { formatAmount } from "@/lib/config/design-tokens";
@@ -39,12 +39,20 @@ function refresh(dealId: string) {
 /* ------------------------------------------------------------- activities */
 
 /**
- * Log a call, a note, or a commitment.
+ * Log a call or a note, and set or clear the next action.
+ *
+ * One form, three submit buttons, because the panel shows all of it at once.
+ * A disposition button makes it a call whatever else is filled in; "Add note
+ * only" makes it a note; "Set" touches the reminder and writes no activity.
  *
  * Deliberately tolerant about what it needs: a disposition alone is a complete
  * call log. RNR is 30% of all outcomes, so logging one has to be a single
  * action with no required typing — that is the adoption test for the whole
  * system, and everything here is shaped around it.
+ *
+ * Commitments are gone. They wrote their own due date that nothing scheduled
+ * off, next to a next action that everything schedules off. Historic rows
+ * still render in the timeline; nothing writes new ones.
  */
 export async function logActivity(_prev: DealActionState, formData: FormData): Promise<DealActionState> {
   const dealId = String(formData.get("deal_id") ?? "");
@@ -54,15 +62,29 @@ export async function logActivity(_prev: DealActionState, formData: FormData): P
   const { user, deal, supabase } = ctx;
   if (!can(user, "log_activity", deal)) return { error: "You cannot log activity on that deal." };
 
-  const type = String(formData.get("type") ?? "note") as "call" | "note" | "commitment";
   const dispositionId = formData.get("disposition_id");
   const notes = String(formData.get("notes") ?? "").trim();
-  const dueDate = String(formData.get("due_date") ?? "").trim();
+  const nextAction = String(formData.get("next_action_at") ?? "").trim();
+  const nextActionNote = String(formData.get("next_action_note") ?? "").trim();
+
+  // The submitter says what was intended; a disposition overrides it, because
+  // clicking one is unambiguous however the form was reached.
+  const submitted = String(formData.get("type") ?? "");
+  const type: "call" | "note" | "next_action" =
+    dispositionId ? "call" : submitted === "next_action" ? "next_action" : "note";
 
   if (type === "note" && !notes) return { error: "Write something first." };
-  if (type === "call" && !dispositionId) return { error: "Pick what happened on the call." };
-  if (type === "commitment" && (!notes || !dueDate)) {
-    return { error: "A commitment needs what was promised and by when." };
+
+  // Setting the reminder is not an event that happened — it writes no activity.
+  if (type === "next_action") {
+    const { error } = await supabase.from("deals").update({
+      next_action_at: nextAction ? new Date(nextAction).toISOString() : null,
+      next_action_note: nextActionNote || null,
+    }).eq("id", dealId);
+    if (error) return { error: error.message };
+
+    refresh(dealId);
+    return { ok: true, message: nextAction ? "Reminder set." : "Reminder cleared." };
   }
 
   const { error } = await supabase.from("activities").insert({
@@ -71,7 +93,6 @@ export async function logActivity(_prev: DealActionState, formData: FormData): P
     type,
     disposition_id: dispositionId ? Number(dispositionId) : null,
     notes: notes || null,
-    metadata: type === "commitment" ? { due_date: dueDate, status: "open" } : null,
   });
   if (error) return { error: error.message };
 
@@ -84,11 +105,12 @@ export async function logActivity(_prev: DealActionState, formData: FormData): P
   }
 
   // A logged call clears the reminder it was answering; the next one gets set
-  // explicitly. Leaving it would keep the deal permanently "overdue".
-  const nextAction = String(formData.get("next_action_at") ?? "").trim();
+  // explicitly, in the same submit if the fields were filled. Leaving it would
+  // keep the deal permanently "overdue" — which is why the date input is never
+  // prefilled with what is already set.
   if (nextAction) {
     patch.next_action_at = new Date(nextAction).toISOString();
-    patch.next_action_note = notes || null;
+    patch.next_action_note = nextActionNote || notes || null;
   } else if (type === "call" && deal.next_action_at) {
     patch.next_action_at = null;
     patch.next_action_note = null;
@@ -178,44 +200,6 @@ export async function changeStage(_prev: DealActionState, formData: FormData): P
 
 /* ------------------------------------------------------------- assignment */
 
-/**
- * The two assignment columns are not interchangeable: RLS lets a rep read a
- * deal through `rep_owner_id` and nothing else. So assigning a sales rep "as
- * CRM Manager" writes his id into `crm_owner_id`, the deal never reaches his
- * My Deals, and the UI still says "Assigned." — a silent loss, which is how it
- * was found.
- *
- * The bulk bar on /deals offers the role and the person as two independent
- * selects, so the mismatched pair is reachable from the UI. Filtering that list
- * fixes the path; this fixes the rule, for every caller.
- */
-async function assigneeHoldsRole(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  asRole: "crm_manager" | "sales_rep",
-): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
-  const { data } = await supabase
-    .from("users").select("name, role, is_active").eq("id", userId).maybeSingle();
-
-  if (!data) return { ok: false, error: "That person no longer exists." };
-  if (!data.is_active) return { ok: false, error: `${data.name} is deactivated.` };
-
-  // Admin is a superset of CRM Manager (lib/domain/permissions.ts), so an admin
-  // may legitimately hold the CRM Manager column. Nobody but a rep may hold the
-  // rep column — that is what the rep's whole view keys off.
-  const allowed = asRole === "crm_manager"
-    ? data.role === "crm_manager" || data.role === "admin"
-    : data.role === "sales_rep";
-
-  if (!allowed) {
-    return {
-      ok: false,
-      error: `${data.name} is a ${ROLE_LABELS[data.role as Role] ?? data.role}, so cannot be assigned as ${ROLE_LABELS[asRole]}.`,
-    };
-  }
-  return { ok: true, name: data.name };
-}
-
 
 /** Never overwrites an owner without appending to `assignments`. */
 export async function assignDeal(_prev: DealActionState, formData: FormData): Promise<DealActionState> {
@@ -236,7 +220,7 @@ export async function assignDeal(_prev: DealActionState, formData: FormData): Pr
 
   // Clearing an owner needs no check; setting one does.
   if (userId) {
-    const check = await assigneeHoldsRole(supabase, userId, asRole);
+    const check = await assigneeHoldsRole(userId, asRole);
     if (!check.ok) return { error: check.error };
   }
 
@@ -317,26 +301,6 @@ export async function updateQualification(_prev: DealActionState, formData: Form
   return { ok: true, message: "Saved." };
 }
 
-export async function setNextAction(_prev: DealActionState, formData: FormData): Promise<DealActionState> {
-  const dealId = String(formData.get("deal_id") ?? "");
-  const ctx = await context(dealId);
-  if ("error" in ctx) return { error: ctx.error };
-
-  const { user, deal, supabase } = ctx;
-  if (!can(user, "log_activity", deal)) return { error: "You cannot change that." };
-
-  const at = String(formData.get("next_action_at") ?? "").trim();
-  const note = String(formData.get("next_action_note") ?? "").trim();
-
-  const { error } = await supabase.from("deals").update({
-    next_action_at: at ? new Date(at).toISOString() : null,
-    next_action_note: note || null,
-  }).eq("id", dealId);
-  if (error) return { error: error.message };
-
-  refresh(dealId);
-  return { ok: true, message: at ? "Reminder set." : "Reminder cleared." };
-}
 
 /* ------------------------------------------------------------------ bulk */
 
@@ -365,7 +329,7 @@ export async function bulkAssign(_prev: DealActionState, formData: FormData): Pr
   const supabase = await createClient();
   const column = asRole === "crm_manager" ? "crm_owner_id" : "rep_owner_id";
 
-  const check = await assigneeHoldsRole(supabase, userId, asRole);
+  const check = await assigneeHoldsRole(userId, asRole);
   if (!check.ok) return { error: check.error };
 
   const { error } = await supabase.from("deals").update({ [column]: userId }).in("id", ids);

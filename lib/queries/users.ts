@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/db/server";
+import { ROLE_LABELS, type Role } from "@/lib/domain/permissions";
 import type { AppUser } from "@/lib/types";
 
 /**
@@ -43,4 +44,43 @@ export async function listActiveReps(): Promise<AppUser[]> {
     .eq("role", "sales_rep").eq("is_active", true)
     .order("name");
   return (data ?? []) as AppUser[];
+}
+
+/**
+ * May this person hold that ownership column?
+ *
+ * The two columns are not interchangeable: RLS lets a rep reach a deal — and
+ * everything hanging off it, appointments included — through `rep_owner_id`
+ * and nothing else. Put a rep's id in `crm_owner_id` and the deal vanishes from
+ * his screens while every other view still shows him as the owner.
+ *
+ * Lives here rather than in an action because both lib/actions/deals.ts and
+ * lib/actions/appointments.ts need it, and a "use server" module cannot export
+ * a helper without also publishing it as a callable endpoint.
+ */
+export async function assigneeHoldsRole(
+  userId: string,
+  asRole: "crm_manager" | "sales_rep",
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("users").select("name, role, is_active").eq("id", userId).maybeSingle();
+
+  if (!data) return { ok: false, error: "That person no longer exists." };
+  if (!data.is_active) return { ok: false, error: `${data.name} is deactivated.` };
+
+  // Admin is a superset of CRM Manager (lib/domain/permissions.ts), so an admin
+  // may legitimately hold the CRM Manager column. Nobody but a rep may hold the
+  // rep column — that is what the rep's whole view keys off.
+  const allowed = asRole === "crm_manager"
+    ? data.role === "crm_manager" || data.role === "admin"
+    : data.role === "sales_rep";
+
+  if (!allowed) {
+    return {
+      ok: false,
+      error: `${data.name} is a ${ROLE_LABELS[data.role as Role] ?? data.role}, so cannot be assigned as ${ROLE_LABELS[asRole]}.`,
+    };
+  }
+  return { ok: true, name: data.name };
 }

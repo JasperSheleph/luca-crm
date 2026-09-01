@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { logActivity, type DealActionState } from "@/lib/actions/deals";
 import Button from "@/components/ui/button";
-import { inputClass } from "@/components/ui/field";
+import { inputBase, inputClass } from "@/components/ui/field";
+import { formatDate } from "@/lib/config/design-tokens";
 import { useDealChanged } from "@/components/deals/use-deal-changed";
 import type { ListValue } from "@/lib/types";
 
@@ -16,14 +17,24 @@ const MAX_SHORTCUTS = 9;
  * month, so the dispositions are buttons, not a dropdown inside a form: one
  * click logs the call and nothing else is required.
  *
- * Notes and commitments are behind a second click, because they are the
- * exception rather than the rule.
+ * Everything is on screen at once. It was tabs — call / note / promise — and
+ * the tabs cost a click to discover and hid the thing you wanted while you
+ * were looking at the thing you didn't. The three fields together are shorter
+ * than the tab strip was.
+ *
+ * There is no separate "promise" any more. It wrote an activity row with its
+ * own due date that nothing scheduled off, sitting beside a next action that
+ * everything schedules off — two dates meaning the same thing, one of them
+ * inert. Next action is the one that works, so it is the one that stayed.
  */
 export default function LogActivity({
-  dealId, dispositions, onLogged,
+  dealId, dispositions, nextActionAt, nextActionNote, onLogged,
 }: {
   dealId: string;
   dispositions: ListValue[];
+  /** The reminder as it stands, so the field shows what is already set. */
+  nextActionAt?: string | null;
+  nextActionNote?: string | null;
   /**
    * Queue mode, passed only by the slide-over.
    *
@@ -39,7 +50,6 @@ export default function LogActivity({
   onLogged?: () => void;
 }) {
   const [state, action, pending] = useActionState<DealActionState, FormData>(logActivity, {});
-  const [mode, setMode] = useState<"call" | "note" | "commitment">("call");
   useDealChanged(state);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -51,7 +61,7 @@ export default function LogActivity({
   const keyed = Math.min(MAX_SHORTCUTS, dispositions.length);
 
   useEffect(() => {
-    if (!shortcuts || mode !== "call") return;
+    if (!shortcuts) return;
 
     const onKey = (e: KeyboardEvent) => {
       // Typing a note must not log a call. Same guard the drawer's arrow keys
@@ -77,7 +87,7 @@ export default function LogActivity({
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [shortcuts, mode, keyed, dispositions]);
+  }, [shortcuts, keyed, dispositions]);
 
   useEffect(() => {
     if (state !== seen.current && state?.ok && advanceOnSuccess.current) {
@@ -88,82 +98,95 @@ export default function LogActivity({
   }, [state, onLogged]);
 
   return (
-    <form ref={formRef} action={action} className="space-y-3">
+    <form ref={formRef} action={action} className="space-y-4">
       <input type="hidden" name="deal_id" value={dealId} />
-      <input type="hidden" name="type" value={mode} />
 
-      <div className="flex gap-1 text-sm">
-        {(["call", "note", "commitment"] as const).map((m) => (
-          <button
-            key={m} type="button" onClick={() => setMode(m)}
-            className={`rounded-md px-2.5 py-1 capitalize transition-colors ${
-              mode === m ? "bg-navy-900 font-medium text-white" : "text-ink-muted hover:bg-navy-50"
-            }`}
-          >
-            {m === "commitment" ? "Promise" : m}
-          </button>
-        ))}
+      {/* ---------------------------------------------------------- call */}
+      <div className="space-y-2">
+        <p className="text-xs text-ink-muted">
+          {shortcuts
+            ? "One click logs the call. Press its number to log and go straight to the next lead."
+            : "One click logs the call."}
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {dispositions.map((d, i) => (
+            <button
+              key={d.id}
+              name="disposition_id"
+              value={d.id}
+              data-disposition={d.id}
+              disabled={pending}
+              className="flex items-center gap-1.5 rounded-md border border-border bg-paper px-2.5 py-1.5 text-sm text-ink transition-colors hover:border-navy-700 hover:bg-navy-100 disabled:opacity-50"
+            >
+              {d.label}
+              {shortcuts && i < keyed && (
+                <kbd className="rounded border border-border bg-navy-50 px-1 text-[10px] leading-4 text-ink-muted">
+                  {i + 1}
+                </kbd>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {mode === "call" && (
-        <>
+      {/* ---------------------------------------------------------- note */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <p className="text-xs font-medium text-ink">
+          Note
+          <span className="ml-1 font-normal text-ink-muted">
+            add it to the call above, or save it on its own
+          </span>
+        </p>
+        <textarea
+          name="notes" rows={2} placeholder="Anything worth remembering (optional)"
+          aria-label="Notes"
+          className={`${inputClass} text-sm`}
+        />
+        {/* A disposition makes it a call; without one the same box is a note,
+            so nothing here needs choosing up front. */}
+        <Button type="submit" name="type" value="note" size="sm" variant="secondary" disabled={pending}>
+          {pending ? "Saving…" : "Add note only"}
+        </Button>
+      </div>
+
+      {/* --------------------------------------------------- next action */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <p className="text-xs font-medium text-ink">
+          Next action
+          <span className="ml-1 font-normal text-ink-muted">when to come back to this</span>
+        </p>
+
+        {/* Shown, not prefilled. These inputs sit in the same form as the
+            disposition buttons, so a prefilled date would be resubmitted with
+            every call logged and the deal could never stop being overdue.
+            Empty means "clear it", which is what logging a call should do. */}
+        {nextActionAt && (
           <p className="text-xs text-ink-muted">
-            {shortcuts
-              ? "One click logs the call. Press its number to log and go straight to the next lead."
-              : "One click logs the call."}
+            Currently {formatDate(nextActionAt)}
+            {nextActionNote ? ` · ${nextActionNote}` : ""} — logging a call clears it
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            {dispositions.map((d, i) => (
-              <button
-                key={d.id}
-                name="disposition_id"
-                value={d.id}
-                data-disposition={d.id}
-                disabled={pending}
-                className="flex items-center gap-1.5 rounded-md border border-border bg-paper px-2.5 py-1.5 text-sm text-ink transition-colors hover:border-navy-700 hover:bg-navy-100 disabled:opacity-50"
-              >
-                {d.label}
-                {shortcuts && i < keyed && (
-                  <kbd className="rounded border border-border bg-navy-50 px-1 text-[10px] leading-4 text-ink-muted">
-                    {i + 1}
-                  </kbd>
-                )}
-              </button>
-            ))}
-          </div>
-          <textarea
-            name="notes" rows={2} placeholder="Anything worth remembering (optional)"
-            className={`${inputClass} text-sm`}
-          />
-        </>
-      )}
+        )}
 
-      {mode === "note" && (
-        <>
-          <textarea
-            name="notes" rows={3} required autoFocus placeholder="What happened?"
-            className={`${inputClass} text-sm`}
+        <div className="flex flex-wrap gap-2">
+          <input
+            name="next_action_at" type="date"
+            aria-label="Next action date" className={`${inputBase} w-44`}
           />
-          <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Add note"}</Button>
-        </>
-      )}
-
-      {mode === "commitment" && (
-        <>
-          <textarea
-            name="notes" rows={2} required autoFocus placeholder="What did we promise them?"
-            className={`${inputClass} text-sm`}
+          <input
+            name="next_action_note" placeholder="What needs doing"
+            aria-label="Next action note" className={`${inputBase} min-w-0 flex-1`}
           />
-          <div className="flex items-center gap-2">
-            <label htmlFor="due_date" className="text-sm text-ink-muted">By</label>
-            <input id="due_date" name="due_date" type="date" required className={`${inputClass} w-44 text-sm`} />
-            <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Record promise"}</Button>
-          </div>
-        </>
-      )}
+          <Button type="submit" name="type" value="next_action" size="sm" variant="secondary" disabled={pending}>
+            Set
+          </Button>
+        </div>
+      </div>
 
       {state.error && (
         <p role="alert" className="rounded-md bg-danger/10 px-3 py-1.5 text-sm text-danger">{state.error}</p>
+      )}
+      {state.message && (
+        <p className="rounded-md bg-success/10 px-3 py-1.5 text-sm text-success">{state.message}</p>
       )}
     </form>
   );

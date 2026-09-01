@@ -16,7 +16,7 @@ import StageBadge from "@/components/deals/stage-badge";
 import Timeline from "@/components/deals/timeline";
 import LogActivity from "@/components/deals/log-activity";
 import {
-  StageControl, AssignControl, NextActionControl, QualificationPanel,
+  StageControl, AssignControl, QualificationPanel,
 } from "@/components/deals/deal-controls";
 import AppointmentPanel from "@/components/deals/appointment-panel";
 import VisitPanel from "@/components/deals/visit-panel";
@@ -106,7 +106,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <Card title="Log what happened">
-            <LogActivity dealId={id} dispositions={lists.call_disposition ?? []} />
+            <LogActivity
+              dealId={id}
+              dispositions={lists.call_disposition ?? []}
+              nextActionAt={deal.next_action_at}
+              nextActionNote={deal.next_action_note}
+            />
           </Card>
 
           <AppointmentPanel
@@ -152,8 +157,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
             lossReasons={lists.loss_reason ?? []}
             notPursuedReasons={lists.not_pursued_reason ?? []}
           />
-
-          <NextActionControl dealId={id} at={deal.next_action_at} note={deal.next_action_note} />
 
           <AssignControl
             dealId={id}

@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import StageBadge from "@/components/deals/stage-badge";
-import { age, dueLabel } from "@/components/deals/relative-time";
+import { ageDays, dueLabel } from "@/components/deals/relative-time";
 import Badge from "@/components/ui/badge";
 import Button from "@/components/ui/button";
 import MultiSelect from "@/components/ui/multi-select";
 import { inputBase } from "@/components/ui/field";
 import { bulkAssign, type DealActionState } from "@/lib/actions/deals";
-import { DEAL_STAGES } from "@/lib/domain/stages";
+import { DEAL_STAGES, VERIFICATION_FILTER_OPTIONS, VERIFICATION_LABELS } from "@/lib/domain/stages";
 import { STAGE_LABELS } from "@/lib/config/design-tokens";
 import { telHref } from "@/lib/domain/phone";
 import { CITY_OTHER } from "@/lib/domain/city";
@@ -22,13 +22,12 @@ import type { DealListRow } from "@/lib/queries/deals";
 interface Options {
   sources: { id: number; label: string }[];
   users: { id: string; name: string; role: string }[];
-  campaigns: string[];
   cities: string[];
   hasUnrecognisedCities: boolean;
 }
 
 /** The filters that take several values at once. */
-const LIST_FILTERS = ["stage", "owner", "source", "city", "campaign"] as const;
+const LIST_FILTERS = ["stage", "owner", "source", "city", "verification"] as const;
 
 export interface BulkAssignConfig {
   crmManagers: { id: string; name: string }[];
@@ -58,7 +57,6 @@ export default function DealsTable({
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [q, setQ] = useState(params.get("q") ?? "");
-  const [moreOpen, setMoreOpen] = useState(!!params.get("campaign"));
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   /**
@@ -117,12 +115,11 @@ export default function DealsTable({
   }, [openLead, openIndex, rows]);
   const [assignState, assignAction, assignPending] = useActionState<DealActionState, FormData>(bulkAssign, {});
 
-  // Which column the hand-over writes. Held in state because the "Assign to…"
-  // list has to follow it: a sales rep picked "as CRM Manager" lands in
-  // crm_owner_id, where RLS never shows it to him again.
-  const [asRole, setAsRole] = useState<"sales_rep" | "crm_manager">(
-    bulk?.canAssignRep ? "sales_rep" : "crm_manager",
-  );
+  // Who the selected leads are being handed to. Held in state only so the
+  // hidden as_role field can follow the choice.
+  const [assignee, setAssignee] = useState("");
+  const roleOf = (id: string) =>
+    bulk?.reps.some((u) => u.id === id) ? "sales_rep" : "crm_manager";
 
   const canBulk = !!bulk && (bulk.canAssignManager || bulk.canAssignRep);
 
@@ -136,7 +133,7 @@ export default function DealsTable({
   }, [q]);
 
   useEffect(() => {
-    if (assignState.ok) setSelected(new Set());
+    if (assignState.ok) { setSelected(new Set()); setAssignee(""); }
   }, [assignState]);
 
   function set(key: string, value: string) {
@@ -191,7 +188,7 @@ export default function DealsTable({
       return next;
     });
 
-  const FILTER_KEYS = [...LIST_FILTERS, "overdue", "uncontacted", "verification", "waking", "quotesla"];
+  const FILTER_KEYS = [...LIST_FILTERS, "overdue", "uncontacted", "waking", "quotesla"];
   const activeFilters = FILTER_KEYS.filter((k) => params.get(k)).length;
   const pages = Math.ceil(total / perPage);
   const allShown = rows.length > 0 && rows.every((r) => selected.has(r.id));
@@ -282,6 +279,12 @@ export default function DealsTable({
           selected={listOf("city")} onChange={setList("city")}
         />
 
+        <MultiSelect
+          label="Any visit check" width="w-48"
+          options={VERIFICATION_FILTER_OPTIONS}
+          selected={listOf("verification")} onChange={setList("verification")}
+        />
+
         <button
           type="button"
           title="Follow-up date has passed"
@@ -300,29 +303,12 @@ export default function DealsTable({
           Never called
         </button>
 
-        <Button size="sm" variant="ghost" onClick={() => setMoreOpen((v) => !v)}>
-          {moreOpen ? "Fewer filters" : "More filters"}
-        </Button>
-
         {activeFilters > 0 && (
           <Button size="sm" variant="ghost" onClick={() => startTransition(() => router.push(pathname))}>
             Clear all
           </Button>
         )}
       </div>
-
-      {/* Campaign is a date-stamped ad name that grows with every ad LUCA runs.
-          Useful for pulling one campaign and exporting it; not for daily work. */}
-      {moreOpen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-navy-50 px-3 py-2">
-          <span className="text-xs text-ink-muted">Campaign</span>
-          <MultiSelect
-            label="Any campaign" width="w-64" searchable
-            options={options.campaigns.map((c) => ({ value: c, label: c }))}
-            selected={listOf("campaign")} onChange={setList("campaign")}
-          />
-        </div>
-      )}
 
       {/* Row 2 — selection and export. Fixed position so Export never drifts
           below when the filter row wraps. */}
@@ -345,28 +331,33 @@ export default function DealsTable({
           <form action={assignAction} className="flex flex-wrap items-center gap-2">
             {[...selected].map((id) => <input key={id} type="hidden" name="deal_ids" value={id} />)}
 
-            {bulk!.canAssignManager && bulk!.canAssignRep ? (
-              <select name="as_role" aria-label="Assign as" value={asRole}
-                      onChange={(e) => setAsRole(e.currentTarget.value as "sales_rep" | "crm_manager")}
-                      className={`${inputBase} w-40 py-1 text-sm`}>
-                <option value="sales_rep">As Sales Rep</option>
-                <option value="crm_manager">As CRM Manager</option>
-              </select>
-            ) : (
-              <input type="hidden" name="as_role" value={bulk!.canAssignManager ? "crm_manager" : "sales_rep"} />
-            )}
+            {/* Which ownership column this writes is not a question worth
+                asking: a rep can only hold rep_owner_id and a manager only
+                crm_owner_id, and assigneeHoldsRole refuses anything else. So
+                the person implies the column, and the form posts it. */}
+            <input type="hidden" name="as_role" value={roleOf(assignee)} />
 
-            <select key={asRole} name="user_id" required aria-label="Assign to"
+            <select name="user_id" required aria-label="Assign to"
+                    value={assignee} onChange={(e) => setAssignee(e.currentTarget.value)}
                     className={`${inputBase} w-44 py-1 text-sm`}>
               <option value="">Assign to…</option>
-              {(asRole === "sales_rep" ? bulk!.reps : bulk!.crmManagers)
-                .map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {bulk!.canAssignRep && (
+                <optgroup label="Sales Reps">
+                  {bulk!.reps.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </optgroup>
+              )}
+              {bulk!.canAssignManager && (
+                <optgroup label="CRM Managers">
+                  {bulk!.crmManagers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </optgroup>
+              )}
             </select>
 
             <Button type="submit" size="sm" disabled={assignPending}>
               {assignPending ? "Assigning…" : `Assign ${selected.size}`}
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+            <Button type="button" size="sm" variant="ghost"
+                    onClick={() => { setSelected(new Set()); setAssignee(""); }}>
               Clear
             </Button>
           </form>
@@ -397,7 +388,7 @@ export default function DealsTable({
               <th className="px-3 py-2 font-medium">Stage</th>
               {showOwners && <th className="px-3 py-2 font-medium">Owner</th>}
               <th className="px-3 py-2 font-medium">Next action</th>
-              <th className="px-3 py-2 text-right font-medium">Age</th>
+              <th className="px-3 py-2 text-right font-medium">Age (days)</th>
             </tr>
           </thead>
           <tbody>
@@ -451,6 +442,15 @@ export default function DealsTable({
                   <td className="px-3 py-2 text-ink-muted">{d.city || "—"}</td>
                   <td className="px-3 py-2">
                     <StageBadge stage={d.stage} firstContactedAt={d.first_contacted_at} size="sm" />
+                    {/* Without this, filtering by visit check gives a list with
+                        nothing on screen saying why those rows are there. */}
+                    {d.visit_verification_status !== "not_required" && (
+                      <div className="mt-1">
+                        <Badge tone={VERIFICATION_LABELS[d.visit_verification_status].tone}>
+                          {VERIFICATION_LABELS[d.visit_verification_status].label}
+                        </Badge>
+                      </div>
+                    )}
                   </td>
                   {showOwners && (
                     <td className="px-3 py-2 text-ink-muted">
@@ -462,7 +462,7 @@ export default function DealsTable({
                       ? <span className={due.overdue ? "font-medium text-danger" : "text-ink-muted"}>{due.text}</span>
                       : <span className="text-ink-muted">—</span>}
                   </td>
-                  <td className="tabular px-3 py-2 text-right text-ink-muted">{age(d.created_at)}</td>
+                  <td className="tabular px-3 py-2 text-right text-ink-muted">{ageDays(d.created_at) ?? "—"}</td>
                 </tr>
               );
             })}

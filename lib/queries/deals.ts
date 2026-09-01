@@ -48,8 +48,13 @@ export interface DealFilters {
   to?: string;
   overdue?: boolean;
   uncontacted?: boolean;
-  /** A completed site visit the customer has not confirmed. */
-  awaitingVerification?: boolean;
+  /**
+   * Visit-check states to show. A list like every other list filter — it used
+   * to be a boolean wearing a string's clothes: only the literal `pending` did
+   * anything, so `?verification=failed` returned an unfiltered list while still
+   * counting as an active filter and offering "Clear all".
+   */
+  verification?: string[];
   /** Parked in Nurture, wake date today or earlier — read in IST, not UTC. */
   wakingToday?: boolean;
   /** Quote sent, follow-up window exhausted, still no answer. */
@@ -92,7 +97,7 @@ export function parseDealFilters(
     to: text("to"),
     overdue: get("overdue") === "1",
     uncontacted: get("uncontacted") === "1",
-    awaitingVerification: get("verification") === "pending",
+    verification: list("verification"),
     wakingToday: get("waking") === "1",
     quotePastSla: get("quotesla") === "1",
     // What turns a filtered view into a work queue. Newest-first is right
@@ -181,17 +186,22 @@ export async function listDeals(f: DealFilters = {}): Promise<{ rows: DealListRo
          .not("stage", "in", "(won,lost,not_pursued)");
   }
 
-  // A visit the rep marked done that the customer has not confirmed. Only
-  // `pending` — `unreachable` and `failed` are their own problems, and `failed`
-  // freezes the deal until an admin resolves it (lib/domain/stages.ts).
-  if (f.awaitingVerification) q = q.eq("visit_verification_status", "pending");
+  // The visit check. `pending` is a visit the rep marked done that the customer
+  // has not confirmed; `failed` freezes the deal until an admin resolves it
+  // (lib/domain/stages.ts). Deliberately does NOT exclude closed deals — a
+  // frozen deal is exactly what someone filtering for `failed` is looking for.
+  if (f.verification) q = q.in("visit_verification_status", f.verification);
 
   // Nurture deals due back. The comparison is against today in IST: the server
   // may well be on UTC, and at 05:00 IST a UTC "today" is still yesterday, so a
   // deal would wake a day late.
   if (f.wakingToday) {
     const endOfDayIst = `${istParts(new Date()).ymd}T23:59:59+05:30`;
-    q = q.not("nurture_wake_at", "is", null).lte("nurture_wake_at", endOfDayIst);
+    q = q.not("nurture_wake_at", "is", null).lte("nurture_wake_at", endOfDayIst)
+         // Every other work-queue filter excludes closed deals; this one did
+         // not, so a won deal still carrying an old wake date turned up in a
+         // queue of things to do.
+         .not("stage", "in", "(won,lost,not_pursued)");
   }
 
   // Quote sent, nobody replied, and the follow-up window has run out.
@@ -212,11 +222,14 @@ export async function listDeals(f: DealFilters = {}): Promise<{ rows: DealListRo
 /** Everything the list needs for its filter dropdowns, in one round trip. */
 export async function getDealFilterOptions() {
   const supabase = await createClient();
-  const [{ data: sources }, { data: users }, { data: campaigns }, { data: cities }, serviceArea] =
+  // No campaign options: the campaign filter came off the screen, and reading
+  // 2,000 rows on every page load to populate a dropdown nobody opens is not
+  // worth it. `parseDealFilters` still understands ?campaign=, so putting the
+  // control back is a UI-only change.
+  const [{ data: sources }, { data: users }, { data: cities }, serviceArea] =
     await Promise.all([
       supabase.from("list_values").select("id, label").eq("list_type", "lead_source").eq("is_active", true).order("sort_order"),
       supabase.from("users").select("id, name, role").eq("is_active", true).order("name"),
-      supabase.from("deal_list_view").select("campaign_name").not("campaign_name", "is", null).limit(2000),
       supabase.from("deal_list_view").select("city_normalized").not("city_normalized", "is", null).limit(2000),
       getServiceAreaCities(),
     ]);
@@ -231,7 +244,6 @@ export async function getDealFilterOptions() {
   return {
     sources: sources ?? [],
     users: users ?? [],
-    campaigns: [...new Set((campaigns ?? []).map((c) => c.campaign_name as string))].sort(),
     cities: known,
     hasUnrecognisedCities: hasUnrecognised,
   };

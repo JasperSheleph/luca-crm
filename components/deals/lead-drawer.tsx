@@ -8,7 +8,7 @@ import Card from "@/components/ui/card";
 import StageBadge from "@/components/deals/stage-badge";
 import Timeline from "@/components/deals/timeline";
 import LogActivity from "@/components/deals/log-activity";
-import { StageControl, NextActionControl } from "@/components/deals/deal-controls";
+import { StageControl } from "@/components/deals/deal-controls";
 import VerificationPanel from "@/components/deals/verification-panel";
 import { age } from "@/components/deals/relative-time";
 import { allowedTransitions, type DealStage } from "@/lib/domain/stages";
@@ -233,6 +233,8 @@ export default function LeadDrawer({
                 key={deal.id}
                 dealId={deal.id}
                 dispositions={ctx.lists.call_disposition ?? []}
+                nextActionAt={deal.next_action_at}
+                nextActionNote={deal.next_action_note}
                 onLogged={onLogged}
               />
             </Card>
@@ -255,12 +257,6 @@ export default function LeadDrawer({
               allowed={transitions}
               lossReasons={ctx.lists.loss_reason ?? []}
               notPursuedReasons={ctx.lists.not_pursued_reason ?? []}
-            />
-
-            <NextActionControl
-              dealId={deal.id}
-              at={deal.next_action_at}
-              note={deal.next_action_note}
             />
 
             <Card

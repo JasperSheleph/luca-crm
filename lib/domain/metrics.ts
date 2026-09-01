@@ -12,7 +12,9 @@
  * ⚠ Read the note on `winRate` before quoting a conversion number to anyone.
  */
 
-import type { DealStage } from "@/lib/domain/stages";
+import type { DealStage, VerificationStatus } from "@/lib/domain/stages";
+import { WORK_PRESETS } from "@/lib/domain/presets";
+import { istParts } from "@/lib/domain/notifications";
 
 /** The columns the dashboard needs. A subset of `deals`, nothing derived. */
 export interface MetricDeal {
@@ -24,7 +26,12 @@ export interface MetricDeal {
   source_id: number | null;
   campaign_name: string | null;
   rep_owner_id: string | null;
-  crm_owner_id: string | null;
+  next_action_at: string | null;
+  visit_verification_status: VerificationStatus;
+  nurture_wake_at: string | null;
+  latest_quote_sent_at: string | null;
+  city_normalized: string | null;
+  is_outstation: boolean | null;
 }
 
 /** Ended one way or another — no longer in the working pipeline. */
@@ -37,6 +44,25 @@ export const FUNNEL_STAGES: DealStage[] = [
 ];
 
 const DAY_MS = 86_400_000;
+
+/**
+ * The wait a first call is expected to happen inside. Named once, because the
+ * attention band's severity and the median-wait warning are the same number.
+ */
+export const RESPONSE_TARGET_DAYS = 3;
+
+/**
+ * What counts as someone working a lead. Matches the daily summary job in
+ * lib/notifications/jobs.ts — two definitions of "a call" is how two screens
+ * quietly come to disagree.
+ */
+export const WORK_ACTIVITY_TYPES = ["call"];
+
+/** Below this, a pace is one person's afternoon, not a rate. */
+export const MIN_PACE_SAMPLE = 5;
+
+/** A rule of thumb for when a win rate stops being noise. Not a target. */
+export const CLOSED_FOR_WIN_RATE = 30;
 
 export interface Bucket {
   key: string;
@@ -122,10 +148,16 @@ export function topBuckets(
  * Campaigns below `minimum` are folded away: a campaign with three leads and
  * one contact reads as 33%, which is noise presented as a finding.
  */
-export function ratesByCampaign(deals: MetricDeal[], minimum = 10, limit = 6): RateRow[] {
+export function ratesBy(
+  deals: MetricDeal[],
+  keyOf: (d: MetricDeal) => string,
+  labelOf: (key: string) => string,
+  minimum = 10,
+  limit = 6,
+): RateRow[] {
   const groups = new Map<string, MetricDeal[]>();
   for (const d of deals) {
-    const key = d.campaign_name ?? "Unattributed";
+    const key = keyOf(d);
     const list = groups.get(key);
     if (list) list.push(d); else groups.set(key, [d]);
   }
@@ -134,13 +166,18 @@ export function ratesByCampaign(deals: MetricDeal[], minimum = 10, limit = 6): R
     .filter(([, rows]) => rows.length >= minimum)
     .map(([key, rows]) => ({
       key,
-      label: key,
+      label: labelOf(key),
       total: rows.length,
       contacted: rows.filter((d) => d.first_contacted_at !== null).length,
       dropped: rows.filter((d) => d.stage === "lost" || d.stage === "not_pursued").length,
     }))
     .sort((a, b) => b.total - a.total)
     .slice(0, limit);
+}
+
+/** The campaign case, kept named because it is the one with a rationale. */
+export function ratesByCampaign(deals: MetricDeal[], minimum = 10, limit = 6): RateRow[] {
+  return ratesBy(deals, (d) => d.campaign_name ?? "Unattributed", (k) => k, minimum, limit);
 }
 
 /**
@@ -258,7 +295,191 @@ export function byRep(
     .sort((a, b) => b.won - a.won || b.total - a.total);
 }
 
-/** Deals parked in Nurture, waiting on a wake date. */
-export function nurturePool(deals: MetricDeal[]): number {
-  return deals.filter((d) => d.stage === "nurture").length;
+/* ------------------------------------------------------------- outcomes */
+
+export interface Outcomes {
+  total: number;
+  open: number;
+  nurture: number;
+  won: number;
+  lost: number;
+  notPursued: number;
+}
+
+/**
+ * Where every lead ended up, in five numbers that sum to the total.
+ *
+ * `open` includes Nurture — a parked lead is still in play, it just has a date
+ * on it. `funnel()` deliberately excludes Nurture because parking is not a step
+ * towards Won, and that disagreement is exactly why both live in this file
+ * rather than being re-derived in a component: the funnel bars and the open
+ * count could not otherwise be reconciled by anyone reading the page.
+ */
+export function outcomes(deals: MetricDeal[]): Outcomes {
+  const count = (stage: DealStage) => deals.filter((d) => d.stage === stage).length;
+  const won = count("won");
+  const lost = count("lost");
+  const notPursued = count("not_pursued");
+  const nurture = count("nurture");
+  return {
+    total: deals.length,
+    open: deals.length - won - lost - notPursued,
+    nurture,
+    won,
+    lost,
+    notPursued,
+  };
+}
+
+/* ------------------------------------------------------- attention band */
+
+export interface AttentionBucket {
+  /** Matches WorkPreset.key, so a tile links to the list it counted. */
+  key: string;
+  count: number;
+  /** How long the oldest lead in the bucket has waited. Null when empty. */
+  oldestDays: number | null;
+  severity: "clear" | "watch" | "act";
+}
+
+interface PredicateContext {
+  now: Date;
+  quoteSlaDays: number;
+  wakeCutoff: string;
+}
+
+const OPEN = (d: MetricDeal) => !CLOSED_STAGES.includes(d.stage);
+
+/**
+ * One predicate per work preset, mirroring `listDeals` in lib/queries/deals.ts.
+ *
+ * These must agree with the SQL line for line, including where the SQL is
+ * inconsistent: the visit check deliberately does NOT exclude closed deals, and
+ * the waking filter keys off `nurture_wake_at` rather than the stage. A tile
+ * that counts differently from the list it opens is worse than no tile.
+ */
+const PREDICATES: Record<string, (d: MetricDeal, c: PredicateContext) => boolean> = {
+  "to-call": (d) => OPEN(d) && d.first_contacted_at === null,
+
+  // No OPEN() guard, matching the query: a frozen deal is exactly what someone
+  // looking at the visit check needs to see.
+  "awaiting-verification": (d) => d.visit_verification_status === "pending",
+
+  "overdue": (d, c) =>
+    OPEN(d) && d.next_action_at !== null && new Date(d.next_action_at) < c.now,
+
+  "waking": (d, c) =>
+    OPEN(d) && d.nurture_wake_at !== null && d.nurture_wake_at <= c.wakeCutoff,
+
+  "quote-sla": (d, c) =>
+    OPEN(d) && d.latest_quote_sent_at !== null &&
+    new Date(d.latest_quote_sent_at).getTime() < c.now.getTime() - c.quoteSlaDays * DAY_MS,
+};
+
+// Fail the build, not the page: a sixth preset without a predicate would
+// otherwise render a permanent, silent zero.
+for (const p of WORK_PRESETS) {
+  if (!PREDICATES[p.key]) throw new Error(`Work preset "${p.key}" has no attention predicate.`);
+}
+
+/**
+ * What needs doing right now, one bucket per work preset and in the same order
+ * as the chips on /deals — two screens must not teach different vocabularies.
+ *
+ * Severity is judged on age, not count. With a thousand leads never called, no
+ * count threshold means anything; how long the oldest has waited is the part
+ * that actually moves.
+ */
+export function attention(
+  deals: MetricDeal[],
+  now: Date,
+  opts: { quoteSlaDays: number },
+): AttentionBucket[] {
+  // End of today in India, matching the query. A UTC "today" wakes a deal a
+  // day late at 05:00 IST, which is the whole reason this is not `new Date()`.
+  const ctx: PredicateContext = {
+    now,
+    quoteSlaDays: opts.quoteSlaDays,
+    wakeCutoff: `${istParts(now).ymd}T23:59:59+05:30`,
+  };
+
+  return WORK_PRESETS.map((preset) => {
+    const rows = deals.filter((d) => PREDICATES[preset.key](d, ctx));
+    if (rows.length === 0) {
+      return { key: preset.key, count: 0, oldestDays: null, severity: "clear" as const };
+    }
+    const oldest = Math.min(...rows.map((d) => new Date(d.created_at).getTime()));
+    const oldestDays = Math.floor((now.getTime() - oldest) / DAY_MS);
+    return {
+      key: preset.key,
+      count: rows.length,
+      oldestDays,
+      severity: oldestDays > RESPONSE_TARGET_DAYS ? ("act" as const) : ("watch" as const),
+    };
+  });
+}
+
+/* ---------------------------------------------------------- lead intake */
+
+export interface MonthPoint {
+  /** "2026-08", bucketed in IST. */
+  key: string;
+  total: number;
+  /** Of that month's leads, how many have since been called at all. */
+  contacted: number;
+}
+
+/**
+ * Leads per month, oldest first, zero-filled.
+ *
+ * Zero-filled because a quiet month is a fact worth seeing — dropping it would
+ * silently close the gap and make intake look steadier than it was.
+ */
+export function monthlyLeads(deals: MetricDeal[], months: number, now: Date): MonthPoint[] {
+  const keys: string[] = [];
+  const [y, m] = istParts(now).ymd.split("-").map(Number);
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(y, m - 1 - i, 1));
+    keys.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+  }
+
+  const points = new Map(keys.map((k) => [k, { key: k, total: 0, contacted: 0 }]));
+  for (const d of deals) {
+    // IST, not UTC: a lead created 31 Aug 20:00 UTC is 1 Sept in Chennai.
+    const bucket = points.get(istParts(new Date(d.created_at)).ymd.slice(0, 7));
+    if (!bucket) continue;
+    bucket.total++;
+    if (d.first_contacted_at) bucket.contacted++;
+  }
+  return keys.map((k) => points.get(k)!);
+}
+
+/* ------------------------------------------------------- clearing pace */
+
+/**
+ * How fast the team is actually working, from logged calls.
+ *
+ * Type filtering happens here rather than in SQL because "what counts as
+ * working a lead" is a business rule, and a stage change or an assignment is
+ * not someone picking up a phone.
+ */
+export function activityPace(
+  rows: { occurred_at: string; type: string }[],
+  windowDays: number,
+  now: Date,
+): { total: number; perDay: number | null; windowDays: number } {
+  const cutoff = now.getTime() - windowDays * DAY_MS;
+  const total = rows.filter(
+    (r) => WORK_ACTIVITY_TYPES.includes(r.type) && new Date(r.occurred_at).getTime() >= cutoff,
+  ).length;
+
+  // Never project from a handful. Three calls in a fortnight is somebody
+  // trying the app, not a rate anyone should plan against.
+  return { total, perDay: total >= MIN_PACE_SAMPLE ? total / windowDays : null, windowDays };
+}
+
+/** How long the backlog takes to clear at that pace. Null when unknowable. */
+export function daysToClear(backlog: number, perDay: number | null): number | null {
+  if (perDay === null || perDay <= 0) return null;
+  return Math.ceil(backlog / perDay);
 }
