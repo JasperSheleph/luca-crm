@@ -11,6 +11,7 @@ import MultiSelect from "@/components/ui/multi-select";
 import { inputBase } from "@/components/ui/field";
 import { bulkAssign, type DealActionState } from "@/lib/actions/deals";
 import { DEAL_STAGES, VERIFICATION_FILTER_OPTIONS } from "@/lib/domain/stages";
+import { DEAL_SORTS, dealSort } from "@/lib/domain/sorts";
 import { STAGE_LABELS } from "@/lib/config/design-tokens";
 import { telHref } from "@/lib/domain/phone";
 import { CITY_OTHER } from "@/lib/domain/city";
@@ -188,6 +189,10 @@ export default function DealsTable({
       return next;
     });
 
+  // Normalised through the same helper the query uses, so a stale or junk
+  // ?sort= shows the sort that was actually applied rather than an empty box.
+  const sortKey = dealSort(params.get("sort")).key;
+
   const FILTER_KEYS = [...LIST_FILTERS, "overdue", "uncontacted", "waking", "quotesla"];
   const activeFilters = FILTER_KEYS.filter((k) => params.get(k)).length;
   const pages = Math.ceil(total / perPage);
@@ -302,6 +307,25 @@ export default function DealsTable({
         >
           Never called
         </button>
+
+        {/* A native select, not the MultiSelect popover: one choice out of eight,
+            and the phone gets its own wheel picker for free. Sorting sits with
+            the filters rather than on the column headers because the table
+            scrolls sideways on a phone, where the headers you would need to tap
+            are off the edge of the screen. */}
+        <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+          Sort
+          <select
+            aria-label="Sort leads by"
+            value={sortKey}
+            onChange={(e) => set("sort", e.currentTarget.value)}
+            className={`${inputBase} py-1`}
+          >
+            {DEAL_SORTS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+        </label>
 
         {activeFilters > 0 && (
           <Button size="sm" variant="ghost" onClick={() => startTransition(() => router.push(pathname))}>

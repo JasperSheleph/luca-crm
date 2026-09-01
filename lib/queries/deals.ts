@@ -5,6 +5,7 @@ import { CITY_OTHER } from "@/lib/domain/city";
 // The one IST wall-clock helper in the codebase. Reused rather than
 // reimplemented: a second date path is how "waking today" drifts a day.
 import { istParts } from "@/lib/domain/notifications";
+import { dealSort } from "@/lib/domain/sorts";
 
 export interface DealListRow {
   id: string;
@@ -59,8 +60,11 @@ export interface DealFilters {
   wakingToday?: boolean;
   /** Quote sent, follow-up window exhausted, still no answer. */
   quotePastSla?: boolean;
-  /** Work presets read oldest-first; the browsable list stays newest-first. */
-  sort?: "oldest" | "newest";
+  /**
+   * A key from DEAL_SORTS. Work presets read oldest-first; the browsable list
+   * stays newest-first.
+   */
+  sort?: string;
   page?: number;
   perPage?: number;
 }
@@ -103,7 +107,10 @@ export function parseDealFilters(
     // What turns a filtered view into a work queue. Newest-first is right
     // for searching and wrong for working: the lead that has waited three
     // weeks is the one costing money, and newest-first buries it.
-    sort: get("sort") === "oldest" ? "oldest" : "newest",
+    //
+    // Normalised through dealSort so an unknown key becomes the default here,
+    // once, rather than each caller deciding separately what to do with it.
+    sort: dealSort(get("sort")).key,
   };
 }
 
@@ -212,8 +219,16 @@ export async function listDeals(f: DealFilters = {}): Promise<{ rows: DealListRo
          .not("stage", "in", "(won,lost,not_pursued)");
   }
 
+  const chosen = dealSort(f.sort);
   const { data, count } = await q
-    .order("created_at", { ascending: f.sort === "oldest" })
+    .order(chosen.column, { ascending: chosen.ascending, nullsFirst: chosen.nullsFirst })
+    // A tiebreaker, and not a cosmetic one. The tracker importer writes
+    // created_at from a date-only parse, so every deal imported for a given day
+    // shares an identical timestamp. Ordering by that alone leaves ties in
+    // whatever order Postgres happens to return, and with LIMIT/OFFSET paging
+    // on top, a row can appear on two pages or on none. Budget and last
+    // activity tie far harder still.
+    .order("id", { ascending: true })
     .range((page - 1) * perPage, page * perPage - 1);
 
   return { rows: (data ?? []) as DealListRow[], total: count ?? 0 };

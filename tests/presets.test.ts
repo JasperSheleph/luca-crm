@@ -62,4 +62,18 @@ describe("activePreset", () => {
   it("does not match a preset whose value differs", () => {
     expect(activePreset(urlOf({ verification: "failed", sort: "oldest" }))).toBeUndefined();
   });
+
+  it("stays matched when the queue is re-sorted", () => {
+    // Re-ordering a queue is looking at the same bucket differently, not
+    // leaving it. If the chip un-lit here, clicking it to get back would
+    // re-apply the whole preset and wipe any filter layered on top.
+    expect(activePreset(urlOf({ uncontacted: "1", sort: "budget_high" }))?.key).toBe("to-call");
+    expect(activePreset(urlOf({ uncontacted: "1", sort: "newest" }))?.key).toBe("to-call");
+  });
+
+  it("keeps a preset matched with an extra filter layered on", () => {
+    expect(
+      activePreset(urlOf({ uncontacted: "1", sort: "coldest", city: "coimbatore" }))?.key,
+    ).toBe("to-call");
+  });
 });

@@ -82,7 +82,18 @@ export function presetHref(preset: WorkPreset, path = "/deals"): string {
  */
 export function activePreset(get: (key: string) => string | undefined | null): WorkPreset | undefined {
   return WORK_PRESETS.find((p) =>
-    Object.entries(p.params).every(([k, v]) => (get(k) ?? "") === v),
+    Object.entries(p.params).every(([k, v]) =>
+      // `sort` has to be PRESENT but need not still be the preset's own value.
+      // Re-ordering a queue is looking at the same bucket differently, not
+      // leaving it, so the chip stays lit — otherwise changing the sort silently
+      // un-highlighted it, the empty-state stopped explaining itself, and
+      // clicking the chip to "get back" re-applied the whole preset and wiped
+      // every filter the user had layered on top.
+      //
+      // Presence still matters: without it a bare ?uncontacted=1 from the
+      // "Never called" button would light up the To Call queue, and those are
+      // deliberately different things.
+      k === "sort" ? !!get(k) : (get(k) ?? "") === v),
   );
 }
 
