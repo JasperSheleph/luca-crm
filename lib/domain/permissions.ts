@@ -11,6 +11,13 @@
 
 export type Role = "admin" | "crm_manager" | "sales_rep";
 
+/** How a role is named to a human. Lives here so a message and a sidebar agree. */
+export const ROLE_LABELS: Record<Role, string> = {
+  admin: "Admin",
+  crm_manager: "CRM Manager",
+  sales_rep: "Sales Rep",
+};
+
 export type Action =
   | "assign_lead_to_crm_manager"
   | "assign_lead_to_rep"

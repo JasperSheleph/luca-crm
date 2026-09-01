@@ -117,6 +117,13 @@ export default function DealsTable({
   }, [openLead, openIndex, rows]);
   const [assignState, assignAction, assignPending] = useActionState<DealActionState, FormData>(bulkAssign, {});
 
+  // Which column the hand-over writes. Held in state because the "Assign to…"
+  // list has to follow it: a sales rep picked "as CRM Manager" lands in
+  // crm_owner_id, where RLS never shows it to him again.
+  const [asRole, setAsRole] = useState<"sales_rep" | "crm_manager">(
+    bulk?.canAssignRep ? "sales_rep" : "crm_manager",
+  );
+
   const canBulk = !!bulk && (bulk.canAssignManager || bulk.canAssignRep);
 
   // Typing shouldn't fire a query per keystroke, but it should feel immediate.
@@ -339,7 +346,9 @@ export default function DealsTable({
             {[...selected].map((id) => <input key={id} type="hidden" name="deal_ids" value={id} />)}
 
             {bulk!.canAssignManager && bulk!.canAssignRep ? (
-              <select name="as_role" aria-label="Assign as" className={`${inputBase} w-40 py-1 text-sm`}>
+              <select name="as_role" aria-label="Assign as" value={asRole}
+                      onChange={(e) => setAsRole(e.currentTarget.value as "sales_rep" | "crm_manager")}
+                      className={`${inputBase} w-40 py-1 text-sm`}>
                 <option value="sales_rep">As Sales Rep</option>
                 <option value="crm_manager">As CRM Manager</option>
               </select>
@@ -347,18 +356,11 @@ export default function DealsTable({
               <input type="hidden" name="as_role" value={bulk!.canAssignManager ? "crm_manager" : "sales_rep"} />
             )}
 
-            <select name="user_id" required aria-label="Assign to" className={`${inputBase} w-44 py-1 text-sm`}>
+            <select key={asRole} name="user_id" required aria-label="Assign to"
+                    className={`${inputBase} w-44 py-1 text-sm`}>
               <option value="">Assign to…</option>
-              {bulk!.canAssignRep && (
-                <optgroup label="Sales Reps">
-                  {bulk!.reps.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </optgroup>
-              )}
-              {bulk!.canAssignManager && (
-                <optgroup label="CRM Managers">
-                  {bulk!.crmManagers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </optgroup>
-              )}
+              {(asRole === "sales_rep" ? bulk!.reps : bulk!.crmManagers)
+                .map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
 
             <Button type="submit" size="sm" disabled={assignPending}>

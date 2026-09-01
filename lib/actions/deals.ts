@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
 import { getCurrentUser } from "@/lib/queries/users";
-import { can, canViewDeal } from "@/lib/domain/permissions";
+import { can, canViewDeal, ROLE_LABELS, type Role } from "@/lib/domain/permissions";
 import { canTransition, type DealStage } from "@/lib/domain/stages";
 import { fireNotification, dealNotificationVars } from "@/lib/notifications/from-action";
 import { formatAmount } from "@/lib/config/design-tokens";
@@ -178,6 +178,45 @@ export async function changeStage(_prev: DealActionState, formData: FormData): P
 
 /* ------------------------------------------------------------- assignment */
 
+/**
+ * The two assignment columns are not interchangeable: RLS lets a rep read a
+ * deal through `rep_owner_id` and nothing else. So assigning a sales rep "as
+ * CRM Manager" writes his id into `crm_owner_id`, the deal never reaches his
+ * My Deals, and the UI still says "Assigned." — a silent loss, which is how it
+ * was found.
+ *
+ * The bulk bar on /deals offers the role and the person as two independent
+ * selects, so the mismatched pair is reachable from the UI. Filtering that list
+ * fixes the path; this fixes the rule, for every caller.
+ */
+async function assigneeHoldsRole(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  asRole: "crm_manager" | "sales_rep",
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  const { data } = await supabase
+    .from("users").select("name, role, is_active").eq("id", userId).maybeSingle();
+
+  if (!data) return { ok: false, error: "That person no longer exists." };
+  if (!data.is_active) return { ok: false, error: `${data.name} is deactivated.` };
+
+  // Admin is a superset of CRM Manager (lib/domain/permissions.ts), so an admin
+  // may legitimately hold the CRM Manager column. Nobody but a rep may hold the
+  // rep column — that is what the rep's whole view keys off.
+  const allowed = asRole === "crm_manager"
+    ? data.role === "crm_manager" || data.role === "admin"
+    : data.role === "sales_rep";
+
+  if (!allowed) {
+    return {
+      ok: false,
+      error: `${data.name} is a ${ROLE_LABELS[data.role as Role] ?? data.role}, so cannot be assigned as ${ROLE_LABELS[asRole]}.`,
+    };
+  }
+  return { ok: true, name: data.name };
+}
+
+
 /** Never overwrites an owner without appending to `assignments`. */
 export async function assignDeal(_prev: DealActionState, formData: FormData): Promise<DealActionState> {
   const dealId = String(formData.get("deal_id") ?? "");
@@ -194,6 +233,12 @@ export async function assignDeal(_prev: DealActionState, formData: FormData): Pr
   const column = asRole === "crm_manager" ? "crm_owner_id" : "rep_owner_id";
   const previous = deal[column] as string | null;
   if (previous === (userId || null)) return { ok: true };
+
+  // Clearing an owner needs no check; setting one does.
+  if (userId) {
+    const check = await assigneeHoldsRole(supabase, userId, asRole);
+    if (!check.ok) return { error: check.error };
+  }
 
   const { error } = await supabase.from("deals").update({ [column]: userId || null }).eq("id", dealId);
   if (error) return { error: error.message };
@@ -319,6 +364,9 @@ export async function bulkAssign(_prev: DealActionState, formData: FormData): Pr
 
   const supabase = await createClient();
   const column = asRole === "crm_manager" ? "crm_owner_id" : "rep_owner_id";
+
+  const check = await assigneeHoldsRole(supabase, userId, asRole);
+  if (!check.ok) return { error: check.error };
 
   const { error } = await supabase.from("deals").update({ [column]: userId }).in("id", ids);
   if (error) return { error: error.message };

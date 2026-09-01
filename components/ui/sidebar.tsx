@@ -4,12 +4,7 @@ import { signOut } from "@/lib/actions/auth";
 import type { NavItem } from "@/lib/navigation";
 import type { AppUser } from "@/lib/types";
 import NavLink from "./nav-link";
-
-const ROLE_LABEL: Record<AppUser["role"], string> = {
-  admin: "Admin",
-  crm_manager: "CRM Manager",
-  sales_rep: "Sales Rep",
-};
+import { ROLE_LABELS } from "@/lib/domain/permissions";
 
 export default function Sidebar({
   items, user, unreadCount = 0,
@@ -43,7 +38,7 @@ export default function Sidebar({
 
       <div className="border-t border-white/10 p-3">
         <p className="truncate text-sm font-medium text-white">{user.name}</p>
-        <p className="mb-2 text-xs text-white/60">{ROLE_LABEL[user.role]}</p>
+        <p className="mb-2 text-xs text-white/60">{ROLE_LABELS[user.role]}</p>
         <form action={signOut}>
           <button type="submit" className="text-xs text-white/70 underline-offset-2 hover:text-white hover:underline">
             Sign out
