@@ -392,6 +392,8 @@ using the thing:
   engage a developer when it breaks
 - Build fee — ₹1–1.5 lakh suggested for MVP scope
 
-**Recommended to LUCA** — see [`DATA-HANDLING.md`](DATA-HANDLING.md): set the
+**Recommended to LUCA** — [`DATA-HANDLING-BRIEF.md`](DATA-HANDLING-BRIEF.md) is
+the one-page version for walking the team through it;
+[`DATA-HANDLING.md`](DATA-HANDLING.md) carries the reasoning. Both say: set the
 Meta ad account to India time, make the city question a dropdown, grant
 ad-account access so campaign names export properly.

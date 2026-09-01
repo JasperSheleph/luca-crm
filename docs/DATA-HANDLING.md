@@ -2,6 +2,11 @@
 
 *For LUCA Elevators. Last updated 28 August 2026, after importing 1,073 Meta leads.*
 
+**Walking someone through this in a meeting?** Use
+[`DATA-HANDLING-BRIEF.md`](DATA-HANDLING-BRIEF.md) — the same ground in one page
+of bullets. This document is the version to read alone, and the one to reach for
+when someone asks *why*.
+
 Your lead data arrives messy — that is normal, and not a criticism. People type
 their city as an email address, Meta exports timestamps in an American timezone,
 and the same customer appears three times under two spellings. The CRM cleans
