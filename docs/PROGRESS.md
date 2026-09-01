@@ -365,6 +365,18 @@ using the thing:
 
 **Before go-live**
 
+- **`npm run cron:setup` has not been run.** Step 8's code and the three
+  migrations are applied, but `job_config` holds no `app_url` or `cron_secret`,
+  so `pg_cron` has nothing to dial and no notification will ever fire. It needs
+  `APP_URL` in `.env.local` — the address the app is reachable at *from the
+  internet*, because `pg_net` calls it from Supabase's servers, not from this
+  machine. `localhost` would let the script's self-test pass while the real
+  schedule silently never runs, so this is deliberately deferred until the app
+  is deployed at `crm.lucaelevators.com` (or a tunnel is stood up to test it
+  end-to-end sooner). Re-runnable any time; it overwrites both rows
+- **The IST timing check for `pg_cron` is therefore still unverified.** Step 8's
+  own gate — a job firing at the correct **Asia/Kolkata** hour rather than UTC —
+  cannot be exercised until the above is done
 - **Supabase Pro, ~₹2,200/month.** Non-negotiable: the free tier has **no
   backups** and this is becoming their only lead database
 - Hostinger plan confirmed as **Business or Cloud** — Node.js does not run on
