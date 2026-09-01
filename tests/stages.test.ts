@@ -26,6 +26,14 @@ describe("transitions", () => {
     expect(canTransition("site_visit_done", ctx({ deal: { stage: "appointment_scheduled" } })).ok).toBe(true);
   });
 
+  it("lets a visit be recorded on a deal that was never booked in", () => {
+    // A rep turns up at a site arranged on the phone and checks in. Without
+    // this edge, checking out left the deal on Qualifying holding a completed
+    // visit and a pending verification — permanently stuck, because Quote Sent
+    // is unreachable from Qualifying and the pending check blocks it anyway.
+    expect(canTransition("site_visit_done", ctx()).ok).toBe(true);
+  });
+
   it("refuses moves that are not on the map", () => {
     const r = canTransition("won", ctx());
     expect(r.ok).toBe(false);

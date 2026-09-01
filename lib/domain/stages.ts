@@ -44,7 +44,12 @@ export const VERIFICATION_FILTER_OPTIONS = (
 
 /** Allowed moves. Anything not listed here is refused. */
 const TRANSITIONS: Record<DealStage, DealStage[]> = {
-  qualifying:            ["appointment_scheduled", "nurture", "lost", "not_pursued"],
+  // site_visit_done is reachable straight from qualifying because a rep can
+  // check in at a site that was arranged on the phone and never booked here.
+  // Without it, checking out left the deal in Qualifying with a completed visit
+  // and a pending verification — stuck, because Quote Sent is unreachable from
+  // Qualifying and the pending check blocks it anyway.
+  qualifying:            ["appointment_scheduled", "site_visit_done", "nurture", "lost", "not_pursued"],
   appointment_scheduled: ["site_visit_done", "qualifying", "lost", "nurture"],
   site_visit_done:       ["quote_sent", "lost", "nurture"],
   quote_sent:            ["negotiation", "lost", "nurture"],

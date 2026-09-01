@@ -7,6 +7,7 @@ import { fireNotification, dealNotificationVars } from "@/lib/notifications/from
 import { presetHref, AWAITING_VERIFICATION } from "@/lib/domain/presets";
 import { can, canViewDeal } from "@/lib/domain/permissions";
 import { canTransition, type DealStage } from "@/lib/domain/stages";
+import { STAGE_LABELS } from "@/lib/config/design-tokens";
 import type { AppUser } from "@/lib/types";
 
 export interface VisitState { ok?: boolean; error?: string; message?: string }
@@ -171,6 +172,16 @@ export async function completeVisit(_prev: VisitState, formData: FormData): Prom
     await supabase.from("activities").insert({
       deal_id: dealId, user_id: user.id, type: "stage_change",
       metadata: { from: stage, to: "site_visit_done" },
+    });
+  } else if (stage !== "site_visit_done") {
+    // Say so rather than swallowing it. This failing quietly is how a deal
+    // ended up in Qualifying holding a completed visit: everything about the
+    // visit was written, the stage move was refused, and nothing said a word.
+    // Reaching here now means a genuinely blocked deal — a frozen one, or one
+    // already past this point — not a missing edge in the machine.
+    await supabase.from("activities").insert({
+      deal_id: dealId, user_id: user.id, type: "note",
+      notes: `Visit recorded, but the deal stayed on ${STAGE_LABELS[stage]}: ${verdict.reason}`,
     });
   }
 
