@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import Badge from "@/components/ui/badge";
-import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
 import StageBadge from "@/components/deals/stage-badge";
 import Timeline from "@/components/deals/timeline";
@@ -162,6 +161,18 @@ export default function LeadDrawer({
                 </h2>
                 <StageBadge stage={deal.stage} firstContactedAt={deal.first_contacted_at} size="sm" />
               </div>
+              {/* Who is on it belongs up here with the name. Reading a lead in
+                  the queue, "whose is this" is asked before anything in the
+                  body — and the answer used to be two screens away, on the
+                  full page. Unassigned is called out rather than left blank. */}
+              <p className="mt-0.5 truncate text-xs text-ink-muted">
+                {deal.rep_owner_name ? (
+                  <span className="text-ink">Rep: {deal.rep_owner_name}</span>
+                ) : (
+                  <span className="text-warning">No rep assigned</span>
+                )}
+                {deal.crm_owner_name && <> · CRM: {deal.crm_owner_name}</>}
+              </p>
               <p className="mt-0.5 truncate text-xs text-ink-muted">
                 {[deal.city, deal.source_label].filter(Boolean).join(" · ")}
               </p>
@@ -188,6 +199,14 @@ export default function LeadDrawer({
                 className="rounded px-1.5 py-1 text-sm text-ink-muted hover:bg-navy-50 hover:text-ink disabled:opacity-30"
               >↓</button>
             </>
+          )}
+          {deal && (
+            <Link
+              href={`/deals/${deal.id}`}
+              className="rounded px-2 py-1 text-xs font-medium text-navy-700 underline-offset-2 hover:bg-navy-50 hover:underline"
+            >
+              Full page
+            </Link>
           )}
           <button
             type="button" onClick={onClose} aria-label="Close"
@@ -269,12 +288,11 @@ export default function LeadDrawer({
         )}
       </div>
 
+      {/* Hints only. "Open full deal" moved into the header: at the foot of a
+          long scroll it was below everything it was an alternative to. */}
       {deal && (
         <footer className="border-t border-border px-4 py-2.5">
-          <Link href={`/deals/${deal.id}`}>
-            <Button size="sm" variant="secondary">Open full deal</Button>
-          </Link>
-          <span className="ml-3 text-xs text-ink-muted">
+          <span className="text-xs text-ink-muted">
             Esc closes · <kbd>↑</kbd> <kbd>↓</kbd> move between leads
             {onLogged && <> · <kbd>1</kbd> logs RNR and moves on</>}
           </span>
