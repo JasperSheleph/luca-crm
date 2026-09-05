@@ -35,6 +35,12 @@ What still has to be true: **logging a call is one interaction.** RNR is 30% of
 ~440 leads a month, and it happens in the lead slide-over without a page load.
 Worth timing once against a spreadsheet cell before building further.
 
+**Nothing can post a lead into the system yet.** `POST /api/leads/inbound` — the
+single ingestion path in the spec — is an empty directory, and `ingestLead()` is
+never called. CSV upload is the only way in, while ~43% of their leads arrive
+from non-Meta sources. See the open items in
+[`docs/PROGRESS.md`](docs/PROGRESS.md).
+
 Notifications are built but the schedule is **not live**, and three migrations
 are **written but not applied**. `npm run db:push` then `npm run cron:setup`.
 Until both are run, nothing timed fires and Admin → Health says so in as many
@@ -98,6 +104,11 @@ npm run db:push      # apply new migrations
 `.env.local` is required and gitignored — copy `.env.example` and fill it from
 the Supabase dashboard. `data/` holds the customer CSVs and is also gitignored;
 the importer tests skip themselves without it.
+
+## How it fits together
+
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — stack, systems, every page by
+role, the API surface, data flows and the security model.
 
 ## Where things live
 
