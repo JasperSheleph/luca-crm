@@ -35,6 +35,12 @@ The constraint it was built around: **logging a call is one interaction.** RNR
 is 30% of ~440 leads a month, and it happens in the lead slide-over without a
 page load. That holds in use, so step 4 is closed — do not re-add a timing gate.
 
+**A lead can only enter by CSV upload today.** No API, no manual entry, no
+automation — the only two paths that create a deal are the importers. That
+blocks the website form, phone-in leads and any Meta automation.
+[`docs/REMAINING-WORK.md`](docs/REMAINING-WORK.md) is the single list of what is
+still missing; start there before building anything.
+
 All fourteen migrations are applied, so event-driven notifications work. The
 **schedule is not live**: `job_config` holds no `app_url` or `cron_secret`, so
 `pg_cron` has nothing to dial. `npm run cron:setup` fixes that, but it needs an
@@ -101,6 +107,11 @@ npm run db:push      # apply new migrations
 `.env.local` is required and gitignored — copy `.env.example` and fill it from
 the Supabase dashboard. `data/` holds the customer CSVs and is also gitignored;
 the importer tests skip themselves without it.
+
+## How it fits together
+
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — stack, systems, every page by
+role, the API surface, data flows and the security model.
 
 ## Where things live
 

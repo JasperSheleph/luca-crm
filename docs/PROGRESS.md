@@ -3,7 +3,8 @@
 *Updated 30 August 2026. Keep this current — it is what a new session reads to
 find out what exists.*
 
-Read [`CLAUDE.md`](../CLAUDE.md) first. Where this file disagrees with
+Read [`CLAUDE.md`](../CLAUDE.md) first, and
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for how the pieces fit together. Where this file disagrees with
 [`LUCA-CRM-BUILD.md`](../LUCA-CRM-BUILD.md), **this file is right** and the spec
 has not caught up.
 
@@ -360,8 +361,23 @@ using the thing:
 
 ## Open items
 
+> The full list, with what each one needs, is in
+> [`REMAINING-WORK.md`](REMAINING-WORK.md). What follows is the go-live summary.
+
 **Before go-live**
 
+- **`POST /api/leads/inbound` does not exist.** `app/api/leads/inbound/` is an
+  empty directory and `ingestLead()` in [`lib/ingest.ts`](../lib/ingest.ts) is
+  never called from anywhere. `LUCA-CRM-BUILD.md` §8 makes this the single
+  ingestion path for every source, so today a CSV upload is the **only** way a
+  lead can enter the system. Meta is ~250 of their ~440 leads a month, so
+  roughly **43% of their lead flow has no route in** — the WordPress form has
+  nowhere to post. The hard part is already written: `ingestLead()` stores the
+  raw payload before processing, matches customers on normalised phone, applies
+  `lead_assignment_mode` and appends the `assignments` row. What is missing is a
+  route handler that checks `LEADS_INBOUND_API_KEY` (already in `.env.example`
+  and already listed in `PUBLIC_PATHS` in `proxy.ts`), validates the body, calls
+  it, and always returns 200 so a caller never retries into duplicates
 - **`npm run cron:setup` has not been run.** Step 8's code and the three
   migrations are applied, but `job_config` holds no `app_url` or `cron_secret`,
   so `pg_cron` has nothing to dial and no notification will ever fire. It needs
