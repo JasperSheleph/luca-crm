@@ -111,7 +111,68 @@ Each has a gate that has not been run. None is a code gap.
 
 ---
 
-## 3. Waiting on LUCA
+## 3. Deployment — never was a step in the plan
+
+The ten-step build order ends at *Docs*. **There is no step for making it live**,
+and nothing in the repo is configured for it. This is a gap in the plan itself,
+not work that was skipped.
+
+**Nothing is deployment-ready today:**
+
+- `next.config.ts` has **no `output` setting**. The default build expects the
+  whole `node_modules` tree on the server, which is painful on shared hosting.
+  `output: "standalone"` bundles only what is needed — decide once the Hostinger
+  Node setup is known, because it changes the start command
+- `npm start` is plain `next start`. No process manager, nothing to restart it
+  after a reboot or a crash
+- `docs/DEPLOYMENT.md` does not exist. It is a step 10 deliverable, but the
+  *doing* has to happen before the *writing*
+
+**Blocking, and on LUCA:**
+
+- **Which Hostinger plan.** Node.js runs only on **Business and Cloud**. Premium
+  and Single are PHP-only — if they are on Premium it is an upgrade or a
+  different host. Everything else here waits on this answer
+- **hPanel access**, separate from webmail and WordPress. Ask Vishal to add you
+  via Account Sharing rather than sharing a password. If the agency set up the
+  hosting, the account may be under *their* email
+- **Who controls DNS** — LUCA or the agency
+- **The Node version Hostinger offers.** `engines` says `>=20.9` with no ceiling
+  precisely because this is unknown. Pin it in `engines` and `.nvmrc` once known,
+  so nobody builds against something the host cannot run
+
+**To do, in order, once the above are answered:**
+
+1. Set `output` and the start command to match Hostinger's Node app setup
+2. Create the subdomain `crm.lucaelevators.com` and point a DNS record at the app.
+   SSL is automatic via Let's Encrypt
+3. Set all runtime env vars in hPanel — `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`,
+   `LEADS_INBOUND_API_KEY`, and the two WhatsApp vars if enabled.
+   **`SUPABASE_SERVICE_ROLE_KEY` must never be prefixed `NEXT_PUBLIC_`**
+4. Deploy, then confirm sign-in works over HTTPS on the real domain
+5. **Only now** run `npm run cron:setup` with `APP_URL` set to the live address —
+   `pg_net` calls from Supabase's servers, so this is the first moment it can work
+6. Verify a scheduled job fires at the correct **IST** hour
+7. **Retest the rep view on a real phone.** Geolocation needs a secure origin, so
+   check-in has never actually been exercised — HTTPS is the first chance
+8. Add `allowedDevOrigins` is dev-only and needs nothing in production; confirm
+   the production build ignores it
+
+**Before cutover:**
+
+- **Supabase Pro** — the free tier has no backups
+- **Nightly `pg_dump` to storage, and restore-tested once.** An untested backup
+  is not a backup
+- Website form plugin installed and posting real leads
+- All users created, each person signs in successfully once
+- Both importers run and spot-checked
+- **One week of parallel running** — Jennifer works the CRM alongside the
+  spreadsheet before anyone relies on it
+
+---
+
+## 4. Waiting on LUCA
 
 - **Supabase Pro, ~₹2,200/mo.** Non-negotiable before go-live: the free tier has
   **no backups** and this becomes their only lead database
@@ -129,7 +190,7 @@ grant ad-account access so campaign names export properly.
 
 ---
 
-## 4. Handover pack — deliberately last
+## 5. Handover pack — deliberately last
 
 **Do not start these until the build is confirmed complete.** They describe the
 system as shipped, so writing them early guarantees they are wrong.
@@ -148,7 +209,7 @@ and confirm the build is final first.
 
 ---
 
-## 5. Out of MVP scope
+## 6. Out of MVP scope
 
 Recorded so nothing here is designed around them: call recording · CPQ and quote
 generation · post-sale installation and AMC · rep expense tracking · cost per
