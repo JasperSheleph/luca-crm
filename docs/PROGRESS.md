@@ -16,7 +16,7 @@ has not caught up.
 | 1 | Schema, RLS, storage, seed, auth, app shell | **Done** |
 | 2 | Settings, Users, Importer A (Meta CSV) | **Done** |
 | 3 | Deals list, deal detail, timeline, transitions, assignment | **Done** |
-| 4 | Work queue, as presets on `/deals` — not a `/queue` screen | **Built, not yet timed** |
+| 4 | Work queue, as presets on `/deals` — not a `/queue` screen | **Done** |
 | 5 | Rep view, appointments, visits with geolocation, photos | **Built, not yet on a phone** |
 | 6 | Verification gate, quotes | **Built, not yet walked through** |
 | 7 | Importer B (legacy tracker) | **Built — NOT yet run** |
@@ -92,11 +92,12 @@ LUCA can change it without a deploy.
 logs it and moves to the next lead; RNR is seeded first, so RNR is always `1`.
 Clicking deliberately does not advance — see the decisions table.
 
-**Still to verify.** The number that governs the design: **RNR is 30% of ~440
-leads a month.** Log 20 with the `1` key and time it against a spreadsheet cell.
-Two presets — Awaiting verification and Quotes past SLA — correctly show nothing
-until steps 5 and 6 exist; their empty state says why rather than reading as a
-bug.
+**Closed.** The design rests on **RNR being 30% of ~440 leads a month**, so
+logging one had to be a single interaction. It is, and it works in use — the
+timing run against a spreadsheet cell was dropped as unnecessary rather than
+left outstanding. Two presets — Awaiting verification and Quotes past SLA —
+correctly show nothing until there is anything to show; their empty state says
+why rather than reading as a bug.
 
 ### Steps 5 and 6
 
@@ -273,8 +274,8 @@ against the one shared database is this project's worst outcome:
 - **`authenticated` cannot INSERT into `notifications_log`** — only read, and
   update `read_at`. Nobody can forge a notification to somebody else.
 
-**Not verified against the live database.** `db:push` and `cron:setup` have not
-been run, so nothing timed has ever fired.
+**Applied, but nothing timed has fired.** All three migrations are on the live
+database; `cron:setup` has not been run, so `pg_cron` has no address to call.
 
 Built after steps 4–7 landed, so the two triggers that had no call site —
 `visit_awaiting_verification` and `verification_failed` — are wired into
@@ -331,16 +332,12 @@ using the thing:
   All ten templates are `is_approved = false` — Meta reviews each body
   individually, and until that happens the in-app centre is the only channel,
   which is **pull, not push**: it reaches nobody who does not open the app
-- **The notification schedule is not live.** `npm run db:push` then
-  `npm run cron:setup`, which needs `APP_URL` in `.env.local`. Until then
-  nothing timed fires; the event-driven notifications work as soon as the
-  migration is applied
-- **The database is current through `20260830140000_health.sql`. Three
-  migrations are written and NOT applied:** `20260831120000_notifications`
-  (`dedupe_key`, `job_config`, the `pg_cron` schedule),
-  `20260831130000_verification_escalation` (the tenth rule) and
-  `20260831140000_health_notifications` (schedule status on the Health page).
-  One `npm run db:push` applies all three
+- **The notification schedule is not live.** `npm run cron:setup` has not been
+  run, and it needs `APP_URL` in `.env.local`. Until then nothing timed fires;
+  the event-driven notifications already work
+- **The database is current through `20260831140000_health_notifications.sql`.
+  All fourteen migrations are applied** — `db:status` shows local and remote
+  identical. Run it after every pull rather than trusting this line
 
 ### Things that cost hours to discover
 
