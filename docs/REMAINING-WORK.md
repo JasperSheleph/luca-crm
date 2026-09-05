@@ -9,6 +9,110 @@ mentioning it in conversation.
 
 ---
 
+## Order of work
+
+Tick these off as they land. The numbered sections below carry the *why* — read
+the section before starting an item.
+
+**Items 1–4 are asks, not work.** They gate later phases, so they go out now
+rather than when their phase arrives.
+
+> Step 4's 20-RNR timing gate is **deliberately closed**, not pending — logging a
+> call is one interaction and works in use. `LUCA-CRM-BUILD.md` still asks for
+> it; `PROGRESS.md` overrides the spec. Do not re-add it.
+
+### Ask Vishal — today
+
+- [ ] **1. Which Hostinger plan?** Node runs only on **Business or Cloud**;
+      Premium and Single are PHP-only. Blocks all of Phase 3, and settles the
+      Node version to pin in `engines` and `.nvmrc`
+- [ ] **2. hPanel access, and who controls DNS** — LUCA or the agency. Ask for
+      Account Sharing rather than a shared password
+- [ ] **3. Meta automation: paid forwarder or free webhook?** Blocks item 21.
+      See §1D — recommended on maintenance grounds, not technical ones
+- [ ] **4. Supabase Pro.** No backups today. The data is still reproducible from
+      CSV; once real calls are logged it is not. Needs to land before Phase 5
+
+### Phase 1 — Prove what is built. §2, nothing blocks it
+
+- [ ] **5. Run the tracker import.** Expect ~700 new legacy deals and **zero
+      duplicates** for the 1,031 rows matching a Meta lead
+- [ ] **6. Walk one deal visit → verification → quote**, including a failed
+      verification freezing the deal and an admin unfreezing it
+- [ ] **7. Read the dashboard against real data** and sanity-check the numbers
+
+*Rep check-in and cron timing cannot be proven here — they need HTTPS and a
+public URL. Both are in Phase 3.*
+
+### Phase 2 — Fix lead intake. §1
+
+- [ ] **8. Build `POST /api/leads/inbound`.** The keystone. Route handler only:
+      authenticate on `LEADS_INBOUND_API_KEY`, validate with zod, call
+      `ingestLead()`, always return 200
+- [ ] **9. Build manual *Add lead*** on `/deals` for admin and CRM Manager.
+      **Must call `ingestLead()`**, never insert directly
+- [ ] **10. Test both** against the live database; confirm a repeat phone
+      attaches to the existing customer rather than creating a second one
+
+### Phase 3 — Deploy. §3, blocked on item 1
+
+- [ ] **11.** Set `output` and the start command to match Hostinger's Node setup
+- [ ] **12.** Create `crm.lucaelevators.com`, point DNS, confirm SSL
+- [ ] **13.** Set every env var in hPanel. **`SUPABASE_SERVICE_ROLE_KEY` must
+      never be prefixed `NEXT_PUBLIC_`**
+- [ ] **14.** Deploy; confirm sign-in works over HTTPS on the real domain
+- [ ] **15. Run `cron:setup` with the live `APP_URL`** — the first moment this
+      can work, since `pg_net` calls from Supabase's servers
+- [ ] **16. Verify a scheduled job fires at the correct IST hour**, not UTC
+- [ ] **17. Test rep check-in on a real phone.** Geolocation needs a secure
+      origin, so this has never once been exercised
+
+### Phase 4 — Connect the remaining lead sources. §1C, §1D
+
+- [ ] **18.** WordPress plugin hooking `wpforms_process_complete` → the endpoint.
+      Its own plugin file, **not** `functions.php`
+- [ ] **19. Fix WP Mail SMTP.** Failing now, and WPForms Lite only emails, so
+      website leads may be being lost today
+- [ ] **20. Trace the 5-step quiz** — probably a custom Elementor widget posting
+      somewhere else entirely
+- [ ] **21. Wire Meta automation** per item 3. Confirm the forwarder passes
+      Meta's `created_time` rather than its own arrival time, or lead-age
+      metrics quietly change meaning
+
+### Phase 5 — Go-live checks. §4
+
+- [ ] **22.** Supabase Pro active
+- [ ] **23. Nightly `pg_dump`, restore-tested once.** An untested backup is not
+      a backup, and this becomes their only lead database
+- [ ] **24.** Real user accounts created; each person signs in successfully once
+- [ ] **25. One week of parallel running** — Jennifer works the CRM alongside
+      the spreadsheet before anyone relies on it
+
+### Phase 6 — Handover. Only on Jasper's confirmation. §5
+
+- [ ] **26.** `SCHEMA.md`, `DEPLOYMENT.md`, `MAKING-CHANGES.md`,
+      `ADMIN-GUIDE.md`, credentials inventory — written against the system **as
+      shipped**, reflecting everything that has superseded the original spec
+
+---
+
+## Starting this in a worktree
+
+Read [`WORKING-ON-TWO-MACHINES.md`](WORKING-ON-TWO-MACHINES.md) first:
+
+- A worktree needs its **own `npm install`** and its **own `.env.local`** —
+  neither is tracked, so neither comes with it
+- Two dev servers cannot share port 3000. Use `PORT=3001 npm run dev`
+- **It is the same Supabase database.** A migration applied from a worktree hits
+  the live data every other checkout is using. Migrations are forward-only; run
+  `npm run db:status` after every pull
+
+```
+git worktree add ../luca-crm-intake -b lead-intake
+```
+
+---
+
 ## 1. Lead intake — the biggest hole
 
 **Today a lead can only enter the system through a CSV upload by an admin.**
