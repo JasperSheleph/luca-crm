@@ -364,6 +364,9 @@ using the thing:
 
 ## Open items
 
+> The full list, with what each one needs, is in
+> [`REMAINING-WORK.md`](REMAINING-WORK.md). What follows is the go-live summary.
+
 **Before go-live**
 
 - **`POST /api/leads/inbound` does not exist.** `app/api/leads/inbound/` is an

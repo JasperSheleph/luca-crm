@@ -35,11 +35,11 @@ What still has to be true: **logging a call is one interaction.** RNR is 30% of
 ~440 leads a month, and it happens in the lead slide-over without a page load.
 Worth timing once against a spreadsheet cell before building further.
 
-**Nothing can post a lead into the system yet.** `POST /api/leads/inbound` — the
-single ingestion path in the spec — is an empty directory, and `ingestLead()` is
-never called. CSV upload is the only way in, while ~43% of their leads arrive
-from non-Meta sources. See the open items in
-[`docs/PROGRESS.md`](docs/PROGRESS.md).
+**A lead can only enter by CSV upload today.** No API, no manual entry, no
+automation — the only two paths that create a deal are the importers. That
+blocks the website form, phone-in leads and any Meta automation.
+[`docs/REMAINING-WORK.md`](docs/REMAINING-WORK.md) is the single list of what is
+still missing; start there before building anything.
 
 Notifications are built but the schedule is **not live**, and three migrations
 are **written but not applied**. `npm run db:push` then `npm run cron:setup`.
