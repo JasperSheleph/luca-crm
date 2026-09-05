@@ -49,6 +49,16 @@ servers, so `localhost` would pass the self-test and never actually run. Until
 then nothing timed fires and Admin → Health says so in as many words. See
 [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md).
 
+**That public URL is now within reach, and hosting is no longer blocked.**
+LUCA's own Hostinger account **runs Node.js** — verified 2026-09-05, no upgrade
+and no new spend, and the old "Node needs Business or Cloud, Single is PHP-only"
+claim was simply **wrong**. The plan is paid for and completely empty. A free
+Hostinger subdomain gives an HTTPS URL without DNS or the agency, which is all
+`cron:setup` and the phone geolocation test need. The marketing site and the DNS
+zone live in a *different* Hostinger account, and only `crm.lucaelevators.com`
+itself depends on that. Every verified fact, and what is still unproven, is in
+[`docs/HOSTING.md`](docs/HOSTING.md) — **read it before touching deployment.**
+
 ---
 
 ## Two constraints behind every decision
@@ -112,6 +122,9 @@ the importer tests skip themselves without it.
 
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — stack, systems, every page by
 role, the API surface, data flows and the security model.
+
+[`docs/HOSTING.md`](docs/HOSTING.md) — the Hostinger account, whether it runs
+Node, the domain and DNS topology, and how a session gets API access.
 
 ## Where things live
 

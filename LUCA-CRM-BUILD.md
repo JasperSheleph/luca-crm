@@ -1079,7 +1079,7 @@ The business portfolio is named **"Luca Elevators 1"**. A trailing digit usually
 | Item | Blocks | Status |
 |---|---|---|
 | **hPanel access** | Deployment only | Waiting on Vishal / the agency |
-| **Which Hostinger plan** | Deployment only | ⚠ Node.js needs Business or Cloud. Premium is PHP-only |
+| **Which Hostinger plan** | Deployment only | ✅ Answered 2026-09-05: on **Single**, which **does** run Node.js. The old "needs Business or Cloud" note was wrong — see `docs/REMAINING-WORK.md` |
 | **DNS control** | Deployment only | Unknown whether LUCA or the agency holds it |
 | **Prepaid SIM** | WhatsApp only | Not bought. WhatsApp ships flagged off |
 | **WABA, display name, template approval** | WhatsApp only | Not started. Meta Business Verification is done |

@@ -392,8 +392,9 @@ using the thing:
   cannot be exercised until the above is done
 - **Supabase Pro, ~₹2,200/month.** Non-negotiable: the free tier has **no
   backups** and this is becoming their only lead database
-- Hostinger plan confirmed as **Business or Cloud** — Node.js does not run on
-  Premium. This also settles the Node version to pin in `engines` and `.nvmrc`
+- ~~Hostinger plan upgrade.~~ **Settled 2026-09-05: LUCA is on Single, which
+  runs Node.** No upgrade needed. Pin **22** in `engines` and `.nvmrc` — the
+  platform offers 18, 20, 22, 24. See `docs/REMAINING-WORK.md`
 - hPanel access, DNS control, subdomain `crm.lucaelevators.com`
 - Prepaid SIM if WhatsApp is enabled — it ships flagged off
 - One week of parallel running before cutover

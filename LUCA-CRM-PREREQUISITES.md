@@ -52,7 +52,7 @@ Supabase is renaming these — **publishable key** = anon, **secret key** = serv
 ## 3. Blocks deployment, not development
 
 - [ ] **hPanel access** — hpanel.hostinger.com, separate from webmail and WordPress. Ask Vishal to add you via Account Sharing rather than sharing a password. If the agency ("Jesus Digital Beacon") set up the hosting, the account may be under *their* email
-- [ ] **Which Hostinger plan?** ⚠ Node.js runs only on **Business and Cloud** plans. Premium and Single are PHP-only. If they're on Premium they need an upgrade, or you host elsewhere and point DNS at it
+- [x] **Which Hostinger plan?** **Answered 2026-09-05: LUCA is on Single, and Single runs Node.js.** Verified in the hPanel setup wizard, which offers "Push your code, we host it" tagged *Node.js* on this plan. The old warning here — that Node needs Business or Cloud — was **wrong**; Hostinger's support docs still say it, but they use the global plan names, and India's lineup is Single / Premium / Unlimited / Cloud Startup. No upgrade is needed
 - [ ] **Who controls DNS** — LUCA or the agency
 - [ ] **App URL** — `crm.lucaelevators.com`. Needs a DNS record pointing at the Node.js app. SSL is automatic via free Let's Encrypt
 
@@ -97,7 +97,7 @@ A number can only be registered to **one** WhatsApp product at a time. Registeri
 ## 6. Before go-live
 
 - [ ] **Supabase Pro — $25/month.** Non-negotiable. The free tier has **no backups**, and this becomes the company's only lead database. Also needed before photo storage passes 1GB
-- [ ] Hostinger plan confirmed as Business or Cloud, app deployed, subdomain live
+- [ ] Hostinger plan confirmed as Node-capable (**done — Single qualifies**), app deployed, subdomain live
 - [ ] **Nightly `pg_dump` to storage** configured and *restore-tested once*
 - [ ] WhatsApp templates approved and a test message received (if enabling)
 - [ ] Website form hook installed — a small custom plugin on `wpforms_process_complete`

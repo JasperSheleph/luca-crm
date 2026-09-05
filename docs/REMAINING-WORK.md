@@ -23,11 +23,40 @@ rather than when their phase arrives.
 
 ### Ask Vishal — today
 
-- [ ] **1. Which Hostinger plan?** Node runs only on **Business or Cloud**;
-      Premium and Single are PHP-only. Blocks all of Phase 3, and settles the
-      Node version to pin in `engines` and `.nvmrc`
-- [ ] **2. hPanel access, and who controls DNS** — LUCA or the agency. Ask for
-      Account Sharing rather than a shared password
+- [x] **1. Which Hostinger plan?** **Answered from the Hostinger API,
+      2026-09-05.** The account we hold a token for is **Single Web Hosting —
+      and it *does* run Node** (verified in the setup wizard) — but it is
+      **empty**: zero websites, zero domains, and it is not what serves
+      `lucaelevators.com`
+- [ ] **2. Get one DNS record from the _other_ Hostinger account.** No longer
+      blocks hosting — LUCA's own plan runs Node, so the CRM can be deployed and
+      fully tested on a free subdomain without this. All that is still needed is
+      an A/CNAME record for `crm.lucaelevators.com`, which is **item 12 only**.
+      DNS proves the other account exists:
+      `lucaelevators.com` delegates to `ns1/ns2.dns-parking.com` (Hostinger),
+      `www` resolves via `cdn.hstgr.net`, and mail is `mx1.hostinger.com` — so
+      the site, the DNS zone and the email all live in a Hostinger account we do
+      not have. Ask Vishal who set it up and for **Account Sharing** on it, not a
+      shared password.
+      **Lead:** `lucaelevators.com` is a live WordPress site whose author account
+      is `socialdize2021@gmail.com` — published 2026-05-23, last edited
+      2026-07-21. That is who set it up, and the hosting account is probably
+      under that email.
+      **Confirmed in hPanel, 2026-09-05:** this account is **LUCA's own** —
+      `lucaelevators@gmail.com`, "Luca elevators", Chennai, created
+      2026-05-20 05:48, 2FA on. Websites shows one **Single** plan with an
+      unclicked **Setup** button and nothing else. So the agency's site sits in a
+      *separate* Hostinger account, and LUCA pays for an empty one.
+      **The account we do have is unprovisioned**, not merely on the wrong plan:
+      one order (`hostinger_starter_v3`, ordered 2026-05-20, ₹3,468/yr,
+      auto-renewing to 2028-05-06) and zero websites, zero WordPress installs
+      (owned *or* managed), zero domains, and no hosting username — the API
+      builds a route with an empty account id. It is paid for and doing nothing
+- [ ] **2a. Domain facts, for when Phase 3 starts.** Registered at **GoDaddy**,
+      expiring 2027-05-04, with nameservers pointed at Hostinger. So DNS
+      *records* are edited in that Hostinger account, while changing
+      *nameservers* needs GoDaddy. `crm.lucaelevators.com` does not resolve
+      today — it is free to take
 - [ ] **3. Meta automation: paid forwarder or free webhook?** Blocks item 21.
       See §1D — recommended on maintenance grounds, not technical ones
 - [ ] **4. Supabase Pro.** No backups today. The data is still reproducible from
@@ -54,10 +83,35 @@ public URL. Both are in Phase 3.*
 - [ ] **10. Test both** against the live database; confirm a repeat phone
       attaches to the existing customer rather than creating a second one
 
-### Phase 3 — Deploy. §3, blocked on item 1
+### Phase 3 — Deploy. §3, **unblocked** — LUCA's own plan runs Node
 
+> **What the Hostinger API settled, 2026-09-05.** Next.js is a *first-class*
+> app type on their Node platform — `hosting_updateNode_jsBuildSettingsV1` takes
+> `app_type: "next"` with `node_version` from **18, 20, 22, 24**, so pin **22**
+> in `engines` and `.nvmrc`. `hosting_deployJsApplication` wants an archive of
+> **source only** — no build output, no `node_modules` — meaning Hostinger runs
+> the build itself. So item 11 most likely means *leave `output` at its default*
+> and let their platform build and start the app; `output: "standalone"` is
+> probably wrong here. Confirm against a real build before committing to it.
+> **Mumbai** is an available datacenter for our order — the right one for Tamil
+> Nadu — but the first website created **locks the datacenter for the plan**.
+> `hosting_generateAFreeSubdomainV1` takes no arguments, so a public HTTPS URL
+> is obtainable **without DNS and without the agency** — which unblocks items
+> 14–17 independently of item 12.
+
+- [x] **10a. Does Single run Node? YES — settled 2026-09-05 in hPanel.** The
+      setup wizard on this plan offers **"Push your code, we host it"** tagged
+      *Node.js* and *Static app*, alongside AI Builder, WordPress and PHP/HTML.
+      No upgrade, no new spend. Hostinger's support docs still say Node needs
+      Business or Cloud — they use global plan names that do not match India's
+      Single / Premium / Unlimited / Cloud Startup lineup. **The wizard also
+      offers deploying straight from a GitHub repo, redeploying on every
+      commit** — likely a better route than uploading archives via
+      `hosting_deployJsApplication`; evaluate both at item 11
 - [ ] **11.** Set `output` and the start command to match Hostinger's Node setup
-- [ ] **12.** Create `crm.lucaelevators.com`, point DNS, confirm SSL
+- [ ] **12.** Create `crm.lucaelevators.com`, point DNS, confirm SSL. Needs one
+      record added by whoever holds the zone — see item 2. **Not a blocker for
+      14–17**, which can run on a free `*.hostingersite.com` subdomain first
 - [ ] **13.** Set every env var in hPanel. **`SUPABASE_SERVICE_ROLE_KEY` must
       never be prefixed `NEXT_PUBLIC_`**
 - [ ] **14.** Deploy; confirm sign-in works over HTTPS on the real domain
@@ -214,16 +268,31 @@ Each has a gate that has not been run. None is a code gap.
 
 ## 3. Deployment — never was a step in the plan
 
+> **Read [`HOSTING.md`](HOSTING.md) first.** It holds the verified account
+> facts, the answer on Node, the domain topology and the API access setup.
+> This section is the task list; that file is the evidence.
+
 The ten-step build order ends at *Docs*. **There is no step for making it live**,
 and nothing in the repo is configured for it. This is a gap in the plan itself,
 not work that was skipped.
+
+**The deploy itself can be automated.** The Hostinger API MCP is wired up on
+Jasper's machine (`~/.hostinger-mcp.sh`, five `hostinger-*` servers in
+`~/.claude.json`; token read from `HOSTINGER_API_TOKEN` in `.env.local`). It
+exposes the full Node.js toolchain — `hosting_deployJsApplication`, build
+settings, `hosting_replaceNode_jsEnvironmentVariablesV1` for item 13,
+`hosting_createWebsiteSubdomainV1` for item 12, build and runtime logs, restart —
+plus `DNS_getDNSRecordsV1`/`DNS_updateDNSRecordsV1`. This removes the earlier
+worry that hPanel's Node setup might be UI-only. It still needs an account on a
+plan that runs Node, per item 2.
 
 **Nothing is deployment-ready today:**
 
 - `next.config.ts` has **no `output` setting**. The default build expects the
   whole `node_modules` tree on the server, which is painful on shared hosting.
-  `output: "standalone"` bundles only what is needed — decide once the Hostinger
-  Node setup is known, because it changes the start command
+  `output: "standalone"` bundles only what is needed. **But see the Phase 3 note:
+  Hostinger builds from a source-only archive, so the default output is probably
+  what we want and `standalone` probably wrong.** Confirm against a real build
 - `npm start` is plain `next start`. No process manager, nothing to restart it
   after a reboot or a crash
 - `docs/DEPLOYMENT.md` does not exist. It is a step 10 deliverable, but the
@@ -231,9 +300,11 @@ not work that was skipped.
 
 **Blocking, and on LUCA:**
 
-- **Which Hostinger plan.** Node.js runs only on **Business and Cloud**. Premium
-  and Single are PHP-only — if they are on Premium it is an upgrade or a
-  different host. Everything else here waits on this answer
+- ~~**Which Hostinger plan.**~~ **Settled 2026-09-05: Single, and it runs Node.**
+  The hPanel setup wizard offers "Push your code, we host it" tagged *Node.js*
+  on this plan. The previous claim — Node needs Business or Cloud — was wrong;
+  Hostinger's support docs use global plan names that do not match India's
+  Single / Premium / Unlimited / Cloud Startup lineup. **No upgrade needed**
 - **hPanel access**, separate from webmail and WordPress. Ask Vishal to add you
   via Account Sharing rather than sharing a password. If the agency set up the
   hosting, the account may be under *their* email
@@ -277,8 +348,8 @@ not work that was skipped.
 
 - **Supabase Pro, ~₹2,200/mo.** Non-negotiable before go-live: the free tier has
   **no backups** and this becomes their only lead database
-- **Hostinger plan confirmed as Business or Cloud.** Node.js does not run on
-  Premium. This also settles the Node version to pin in `engines` and `.nvmrc`
+- ~~Hostinger plan upgrade.~~ **Not needed** — Single runs Node. Pin **22** in
+  `engines` and `.nvmrc` (the platform offers 18, 20, 22, 24)
 - hPanel access · DNS control · `crm.lucaelevators.com`
 - Prepaid SIM, only if WhatsApp is enabled — it ships flagged off
 - **Maintenance ownership.** The highest-risk open item: a retainer, or a stated
