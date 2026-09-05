@@ -91,9 +91,6 @@ and the choice has a real cost:
 
 Each has a gate that has not been run. None is a code gap.
 
-- **Time 20 RNRs.** Step 4's gate and the adoption test for the whole product.
-  RNR is 30% of ~440 leads a month; slower than a spreadsheet cell means
-  redesigning before anything else
 - **Open the rep view on a real phone.** Step 5 has never run on hardware.
   Geolocation needs a secure origin, so this needs the deployed site or a
   tunnel — a LAN IP over http will not grant it

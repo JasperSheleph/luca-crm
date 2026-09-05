@@ -19,11 +19,11 @@ exercised against the real database by a real person.
 1,073 real Meta leads are live in Supabase. Sign in as `9000000001` (or
 `admin@luca.test`) with `LucaDemo2026!` — the mobile number works as a login.
 
-Before anything else is built, in this order: **time 20 RNRs** (step 4's gate,
-below), **open the rep view on an actual phone** (step 5), **walk one deal
-through visit → verification → quote** (step 6), and **turn the notification
-schedule on** (below). Each of those is a thing that can only fail in reality,
-and each is cheaper to find now than after handover.
+Before anything else is built, in this order: **open the rep view on an actual
+phone** (step 5), **walk one deal through visit → verification → quote**
+(step 6), and **turn the notification schedule on** (below). Each of those is a
+thing that can only fail in reality, and each is cheaper to find now than after
+handover.
 
 Step 4 is the CRM Manager's work queue, and it is **not a new screen.** It
 extends `/deals` with saved presets and an oldest-first sort instead of building
@@ -31,9 +31,9 @@ the `/queue` route the spec asks for. A second list beside Deals would repeat th
 `/admin/leads` mistake, and `/deals` already answers two of the five buckets as
 filters. The reasoning is in [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
-What still has to be true: **logging a call is one interaction.** RNR is 30% of
-~440 leads a month, and it happens in the lead slide-over without a page load.
-Worth timing once against a spreadsheet cell before building further.
+The constraint it was built around: **logging a call is one interaction.** RNR
+is 30% of ~440 leads a month, and it happens in the lead slide-over without a
+page load. That holds in use, so step 4 is closed — do not re-add a timing gate.
 
 **A lead can only enter by CSV upload today.** No API, no manual entry, no
 automation — the only two paths that create a deal are the importers. That
@@ -41,10 +41,13 @@ blocks the website form, phone-in leads and any Meta automation.
 [`docs/REMAINING-WORK.md`](docs/REMAINING-WORK.md) is the single list of what is
 still missing; start there before building anything.
 
-Notifications are built but the schedule is **not live**, and three migrations
-are **written but not applied**. `npm run db:push` then `npm run cron:setup`.
-Until both are run, nothing timed fires and Admin → Health says so in as many
-words. See [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md).
+All fourteen migrations are applied, so event-driven notifications work. The
+**schedule is not live**: `job_config` holds no `app_url` or `cron_secret`, so
+`pg_cron` has nothing to dial. `npm run cron:setup` fixes that, but it needs an
+`APP_URL` reachable *from the internet* — the call comes from Supabase's
+servers, so `localhost` would pass the self-test and never actually run. Until
+then nothing timed fires and Admin → Health says so in as many words. See
+[`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md).
 
 ---
 
